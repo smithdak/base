@@ -1,3 +1,4 @@
+mod approve;
 mod check;
 mod hook;
 mod init;
@@ -26,6 +27,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Check => check::run(&find_project_root(&start)?, cli.json),
         Command::Work(args) => work::run(&find_project_root(&start)?, args, cli.json),
         Command::Log(args) => log::run(&find_project_root(&start)?, args, cli.json),
+        Command::Approve(args) => approve::run(&find_project_root(&start)?, args, cli.json),
         Command::Hook(_) => unreachable!("hook handled before project discovery"),
     }
 }

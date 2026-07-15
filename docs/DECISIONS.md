@@ -270,3 +270,29 @@ to. Newest entries at the bottom.
 - **Commits us to:** packs never being a compiler concept until real multi-project use demands
   one; adoption always being a visible copy in the adopting repo's history. A `base adopt
   <pack>` helper is the recorded upgrade path when copy-adoption proves tedious.
+
+## D-021: Stage-gate approval is an artifact, not an utterance
+
+- **Status:** accepted (2026-07-15)
+- **Context:** Stage approval was `assisted` on every target — compiled STOP prose the agent is
+  trusted to obey — and the W-0006/W-0007 session showed the failure mode: a session directive
+  stood in for plan approval with no record beyond prose the agent wrote about its own judgment
+  call (W-0008). Consent was the one state the system still kept only in conversation.
+- **Decision:** A stage-approval gate may declare `satisfied-by`, a run-folder-relative artifact
+  path (declarations stay data — a path, a flag; no conditions, per D-008). Protocol: the agent
+  writes `<satisfied-by>.request` describing what needs approval and stops; the human records
+  the verdict from outside the session via `base approve <run> <gate> [--deny]`, which writes an
+  immutable stamped record (who, when, verdict, note). The Claude adapter compiles hooks that
+  deny all mutating tools (Bash, Edit/Write/NotebookEdit, GitHub MCP) while any request lacks
+  its response — which also blocks the agent from self-approving or forging the record. Either
+  verdict lifts the mechanical block; prose routes `denied` to `record aborted`. Standing
+  directives satisfy a gate only as recorded approvals citing their source (`--note`). Matrix:
+  plan-approval becomes `enforced` on Claude, stays `assisted` on Codex, `advisory` on Copilot.
+- **Accepted trade-offs:** any pending request blocks the whole session's mutating tools, not
+  just the gated run (one user, v1 — recorded, not solved); the gate scan fails open on IO
+  errors so a filesystem oddity cannot brick a session (the push denial keeps fail-closed); in
+  the unlikely config with artifact gates but no default-branch denial gate, the push check
+  still rides along in the shared hook binary — over-enforcement accepted over new machinery.
+- **Commits us to:** gate satisfaction never living only in conversation; approval records
+  being immutable (a changed decision is a new run, not an edited file); the enforcement matrix
+  reporting the upgrade honestly per target.

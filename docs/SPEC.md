@@ -138,7 +138,7 @@ degrades to advisory is the failure mode; the matrix makes it visible.
 
 ## 7. The CLI
 
-Rust, single binary, five verbs in v1. Every verb supports `--json`; mutations touch only
+Rust, single binary, six verbs in v1. Every verb supports `--json`; mutations touch only
 files base generated or owns (manifest-listed), never user files.
 
 | Verb | Job |
@@ -148,6 +148,7 @@ files base generated or owns (manifest-listed), never user files.
 | `base check` | validate canon (schema, references, stage existence) + print the enforcement matrix |
 | `base work <list\|new\|show\|move\|board>` | kanban front-end over work-item folders |
 | `base log [<slug>]` | inspect `history.jsonl` / a run folder |
+| `base approve [--deny] [--by] [--note]` | record a stage-gate verdict as an immutable run artifact |
 
 This table describes current behavior, so it is tethered (D-016): `tests/spec.rs` compares
 it against the real clap definition and fails `cargo test` when they disagree in either

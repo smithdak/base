@@ -1,7 +1,7 @@
 ---
 id: W-0008
 title: Approval-as-artifact gate satisfaction
-status: todo
+status: review
 verdict: pending
 created: 2026-07-15
 tags:
@@ -33,7 +33,7 @@ demands them):
 
 ## Acceptance Criteria
 
-- [ ] A decision records approval-as-artifact semantics: stage gates declare a satisfied-by artifact path relative to the run folder, and gate satisfaction is a durable file, never only conversation
-- [ ] base approve <run> <gate> writes the stamped approval record (who, when, what was approved)
-- [ ] The Claude adapter compiles an enforced mechanism: mutating tools are denied while an active run's gated stage lacks its approval artifact; the enforcement matrix reports the per-target fidelity honestly (enforced on claude)
-- [ ] Standing approvals (e.g. a session goal directive) are recorded as explicit approval artifacts citing their source, not inferred in prose
+- [x] A decision records approval-as-artifact semantics: stage gates declare a satisfied-by artifact path relative to the run folder, and gate satisfaction is a durable file, never only conversation
+- [x] base approve <run> <gate> writes the stamped approval record (who, when, what was approved)
+- [x] The Claude adapter compiles an enforced mechanism: mutating tools are denied while an active run's gated stage lacks its approval artifact; the enforcement matrix reports the per-target fidelity honestly (enforced on claude)
+- [x] Standing approvals (e.g. a session goal directive) are recorded as explicit approval artifacts citing their source, not inferred in prose

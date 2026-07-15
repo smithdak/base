@@ -29,7 +29,7 @@ outline strong enough that another capable agent could draft from it.
 
 ### Gate: plan-approval
 
-STOP after completing this stage. Do not execute until the user explicitly approves the written plan. Do not begin the next stage until the user gives explicit approval in this conversation. If approval is denied or unavailable, skip to `record` with outcome `aborted`.
+STOP after completing this stage. Do not execute until the user explicitly approves the written plan. Request the verdict by writing `approvals/plan-approval.md.request` in the run folder describing what needs approval, then stop. The verdict is recorded from outside the session: `base approve <run-slug> plan-approval` (or `--deny`) writes `approvals/plan-approval.md` — a standing directive counts only when recorded that way, with `--note` citing it. Never create the verdict artifact yourself. If the recorded verdict is `denied`, skip to `record` with outcome `aborted`.
 
 ## 3. Draft
 
