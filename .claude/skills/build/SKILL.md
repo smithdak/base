@@ -36,7 +36,14 @@ Implement the approved plan without widening scope. Run the planned checks and c
 `result.md` with changed paths, verification results, and any remaining limitations. Put durable
 proof files under `evidence/` when useful.
 
-## 4. Record
+## 4. Verify
+
+Run the acceptance checks named in `task.md` and the approved plan. Capture the commands and their
+real output as files under `evidence/`; reference them from `result.md` with a pass or fail verdict
+per check. A failing check means the run is not `completed` — fix it or record the honest outcome.
+Never substitute a claim for a captured result.
+
+## 5. Record
 
 Always run this stage, including after rejection, failure, or abort. Append exactly one compact JSON
 object line to `.base/history.jsonl` with `slug`, `date`, `pipeline`, `harness`, `outcome`, and

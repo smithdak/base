@@ -22,6 +22,7 @@ Claude Code agent definitions are available under `.claude/agents/`.
 ## Pipelines
 
 - `/build` — Plan, approve, implement, verify, and record a software change
+- `/fix` — Diagnose, plan, approve, repair, and prove a defect fix
 
 ## Gates
 

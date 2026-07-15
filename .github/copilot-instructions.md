@@ -22,6 +22,7 @@ These are advisory roles. Use their posture when the task calls for it:
 ## Pipelines
 
 - `.github/prompts/build.prompt.md` — Plan, approve, implement, verify, and record a software change
+- `.github/prompts/fix.prompt.md` — Diagnose, plan, approve, repair, and prove a defect fix
 
 ## Gates
 

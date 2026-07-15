@@ -22,6 +22,7 @@ These are advisory roles. Use their posture when the task calls for it:
 ## Pipelines
 
 - `$build` — Plan, approve, implement, verify, and record a software change
+- `$fix` — Diagnose, plan, approve, repair, and prove a defect fix
 
 ## Gates
 
