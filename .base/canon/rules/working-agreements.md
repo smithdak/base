@@ -9,3 +9,5 @@ description: Durable working rules for every harness.
 - Do not claim completion while required work or failing checks remain.
 - Track every decision in a durable artifact: architectural choices in `docs/DECISIONS.md`,
   actionable follow-ups as work items, run outcomes in the ledger — never only in conversation.
+- Docs that describe current behavior must be generated, drift-checked, or deleted;
+  intent docs (spec, decisions) change only as a recorded decision.

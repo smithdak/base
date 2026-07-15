@@ -172,3 +172,21 @@ to. Newest entries at the bottom.
   gate; closing that side door is tracked as W-0002.
 - **Commits us to:** weighing every proposed server against its CLI alternative, and treating an
   idle server as a cost, not a neutral.
+
+## D-016: Descriptive docs are generated, tethered, or deleted
+
+- **Status:** accepted (2026-07-15)
+- **Context:** The canon → `sync` pipeline already makes generated surfaces drift-proof
+  (`sync --check`), and DECISIONS.md is append-only so it cannot go stale. That leaves
+  hand-written prose describing current code behavior as the one artifact class that rots
+  silently — nothing breaks when it diverges. SPEC §7's CLI table was the first instance.
+- **Decision:** Every doc claim about current behavior gets one of three treatments:
+  **generate** it from the source of truth, **tether** it with a mechanical check that fails
+  the build on drift, or **delete** it and let the intent doc stay silent. Intent docs
+  (SPEC, DECISIONS) stay upstream of code: diverging from them is a decision, recorded here
+  first. Applied: `tests/spec.rs` tethers SPEC §7 — verb set, `work` subcommand set,
+  documented flags, the global `--json` promise, and the verb-count prose — to the clap
+  definition; drift in either direction fails `cargo test`.
+- **Commits us to:** never adding a hand-maintained behavior mirror without an attached
+  check, and treating a failing tether as "update the doc or the code deliberately," never
+  as a test to silence.
