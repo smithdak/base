@@ -1,8 +1,8 @@
 ---
 id: W-0005
 title: Guard global-only rules, agents, and pipelines in committed output
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - design

@@ -1,8 +1,8 @@
 ---
 id: W-0008
 title: Approval-as-artifact gate satisfaction
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - gates
