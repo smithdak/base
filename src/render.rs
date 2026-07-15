@@ -65,6 +65,15 @@ fn render_claude(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> R
                         "timeout": 10,
                         "statusMessage": "Checking base standing denials"
                     }]
+                }, {
+                    "matcher": "mcp__github__.*",
+                    "hooks": [{
+                        "type": "command",
+                        "command": "base",
+                        "args": ["__hook", "claude-pre-tool", "--default-branch", config.default_branch],
+                        "timeout": 10,
+                        "statusMessage": "Checking base standing denials"
+                    }]
                 }]
             }
         });

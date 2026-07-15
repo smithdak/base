@@ -1,7 +1,7 @@
 ---
 id: W-0002
 title: Close GitHub MCP side door in the default-branch gate
-status: todo
+status: review
 verdict: pending
 created: 2026-07-15
 tags:
