@@ -249,3 +249,24 @@ to. Newest entries at the bottom.
 - **Commits us to:** base never growing plugin/marketplace machinery; skill installs staying
   user-scoped and out of committed surfaces; promotion into canon always being an authored
   rewrite so no committed byte's sole source is the skillsmith repo.
+
+## D-020: Project-type packs live in the global library, adopted by copy
+
+- **Status:** accepted (2026-07-15)
+- **Context:** W-0007 recovered a planning-era idea: curated canon bundles for project types we
+  build repeatedly, Sitecore first. The open questions were where pack sources live and how
+  adoption works. Research run `2026-07-15-research-sitecore-pack-contents` weighed the options
+  against D-001/D-002 (one user, lean core) and D-017/D-018 (seed-and-adopt, repo-pure surfaces).
+- **Decision:** A pack is a folder in the global library — `~/.base/canon/packs/<pack-id>/` —
+  mirroring the canon kind subfolders (`rules/`, `knowledge/`, `pipelines/`, `agents/`) plus a
+  `pack.md` manifest carrying inventory, adoption instructions, and provenance. `packs/` sits
+  outside the kind folders the compiler reads, so pack contents are invisible to `sync` until a
+  project adopts them by copying files into its own `.base/canon/` — the same visible-copy
+  semantics as D-018, grouped by project type instead of kind. Zero core changes. Pack content
+  follows the D-019 boundary: project-resident ways of working only; portable personal technique
+  stays in user-level skills. Applied: the Sitecore pack (one rules file, three knowledge files,
+  deliberately no pipelines or agents) is the first instance, drafted via writing run
+  `2026-07-15-write-sitecore-pack-draft`.
+- **Commits us to:** packs never being a compiler concept until real multi-project use demands
+  one; adoption always being a visible copy in the adopting repo's history. A `base adopt
+  <pack>` helper is the recorded upgrade path when copy-adoption proves tedious.

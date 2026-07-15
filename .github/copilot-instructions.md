@@ -25,8 +25,11 @@ These are advisory roles. Use their posture when the task calls for it:
 
 ## Pipelines
 
+- `.github/prompts/automation.prompt.md` — Turn a repetitive manual procedure into a proven, repeatable mechanism
 - `.github/prompts/build.prompt.md` — Plan, approve, implement, verify, and record a software change
 - `.github/prompts/fix.prompt.md` — Diagnose, plan, approve, repair, and prove a defect fix
+- `.github/prompts/research.prompt.md` — Investigate a question from real sources and land cited findings
+- `.github/prompts/writing.prompt.md` — Outline, approve, draft, and deliver a written artifact
 
 ## Gates
 
