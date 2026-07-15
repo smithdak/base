@@ -19,6 +19,23 @@
           }
         ],
         "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "args": [
+              "__hook",
+              "claude-pre-tool",
+              "--default-branch",
+              "main"
+            ],
+            "command": "base",
+            "statusMessage": "Checking base standing denials",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "mcp__github__.*"
       }
     ]
   },

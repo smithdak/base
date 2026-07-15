@@ -62,6 +62,14 @@ fn walking_skeleton_syncs_and_detects_drift() {
     let claude_settings = fs::read_to_string(project.path().join(".claude/settings.json")).unwrap();
     let settings: serde_json::Value = serde_json::from_str(&claude_settings).unwrap();
     assert!(settings.get("hooks").is_some());
+    let matchers: Vec<&str> = settings["hooks"]["PreToolUse"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|entry| entry["matcher"].as_str())
+        .collect();
+    assert!(matchers.contains(&"Bash"));
+    assert!(matchers.contains(&"mcp__github__.*"));
     assert!(settings.get("_base_generated").is_none());
     assert!(
         project

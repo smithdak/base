@@ -8,7 +8,7 @@ only discovery metadata and the strongest available gate mechanism differ.
 | rules | `CLAUDE.md` | `AGENTS.md` | `.github/copilot-instructions.md` |
 | pipeline | `.claude/skills/<id>/SKILL.md` | `.agents/skills/<id>/SKILL.md` | `.github/prompts/<id>.prompt.md` |
 | agents | `.claude/agents/<id>.md` | advisory section in `AGENTS.md` | advisory section in instructions |
-| standing denials | project permission rules + `PreToolUse` hook | project `.codex/rules/base.rules` | prose |
+| standing denials | project permission rules + `PreToolUse` hooks (Bash git push, GitHub MCP branch writes) | project `.codex/rules/base.rules` | prose |
 | knowledge | pointer list in `CLAUDE.md` | pointer list in `AGENTS.md` | pointer list in instructions |
 
 Claude Code custom commands now share the skill model, while existing `.claude/commands/` remains
@@ -28,11 +28,14 @@ References:
 `base check` reports every gate × active target as `enforced`, `assisted`, or `advisory`.
 
 - Claude's standing default-branch denial is enforced for harness-issued Bash calls by a deny rule
-  and a deterministic pre-tool hook. Stage approval remains assisted because the harness has no
-  native stage boundary. The hook runs the `base` binary resolved from PATH, and Claude Code treats
-  a command-not-found hook error as non-blocking — so `base check` probes PATH and reports the
-  denial as `assisted` with a warning when the binary does not resolve, since only the deny rules
-  (explicit refspecs) would actually fire.
+  and a deterministic pre-tool hook, and for GitHub MCP tools by the same hook denying any
+  `mcp__github__*` call whose `branch` argument targets the default branch (`refs/heads/`
+  normalized). PR creation and merges carry no write branch and stay permitted — that is the
+  review path. Stage approval remains assisted because the harness has no native stage boundary.
+  The hook runs the `base` binary resolved from PATH, and Claude Code treats a command-not-found
+  hook error as non-blocking — so `base check` probes PATH and reports the denial as `assisted`
+  with a warning when the binary does not resolve, since only the deny rules (explicit refspecs)
+  would actually fire.
 - Codex forbids the ordinary explicit default-branch refspecs through project rules. Unusual or
   implicit refspecs and stage approval remain assisted.
 - Copilot receives gate prose only, so both gate kinds are advisory.

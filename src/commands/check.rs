@@ -114,7 +114,7 @@ fn print_notes(config: &crate::config::Config) {
     println!();
     if config.targets.contains(&Target::Claude) {
         println!(
-            "claude: standing denial uses a project permission deny plus a PreToolUse hook; stage approval is prompt-assisted"
+            "claude: standing denial uses a project permission deny plus PreToolUse hooks over Bash git pushes and GitHub MCP branch writes (PR merges stay the review path); stage approval is prompt-assisted"
         );
     }
     if config.targets.contains(&Target::Codex) {
