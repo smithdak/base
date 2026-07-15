@@ -25,8 +25,11 @@ These are advisory roles. Use their posture when the task calls for it:
 
 ## Pipelines
 
+- `$automation` — Turn a repetitive manual procedure into a proven, repeatable mechanism
 - `$build` — Plan, approve, implement, verify, and record a software change
 - `$fix` — Diagnose, plan, approve, repair, and prove a defect fix
+- `$research` — Investigate a question from real sources and land cited findings
+- `$writing` — Outline, approve, draft, and deliver a written artifact
 
 ## Gates
 
