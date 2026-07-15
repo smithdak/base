@@ -6,6 +6,7 @@ stages:
   - use: plan
     gate: plan-approval
   - use: execute
+  - use: verify
   - use: record
 ---
 
