@@ -1,7 +1,7 @@
 ---
 id: W-0006
 title: Add research, writing, and automation pipeline families
-status: todo
+status: review
 verdict: pending
 created: 2026-07-15
 tags:
@@ -19,6 +19,6 @@ or CLI verbs. Doubles as the proof that the core is genuinely domain-neutral. Re
 
 ## Acceptance Criteria
 
-- [ ] Canon defines at least one pipeline for each family: research, writing, automation
-- [ ] Zero core changes are required — the new families are pure canon additions, proving D-002's domain-neutral commitment
-- [ ] Each new pipeline compiles via base sync to all active targets and has at least one real run recorded in history.jsonl
+- [x] Canon defines at least one pipeline for each family: research, writing, automation
+- [x] Zero core changes are required — the new families are pure canon additions, proving D-002's domain-neutral commitment
+- [x] Each new pipeline compiles via base sync to all active targets and has at least one real run recorded in history.jsonl

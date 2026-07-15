@@ -1,7 +1,7 @@
 ---
 id: W-0007
 title: Project-type packs
-status: todo
+status: review
 verdict: pending
 created: 2026-07-15
 tags:
@@ -25,6 +25,6 @@ manual copy or a CLI helper (`base adopt <pack>`).
 
 ## Acceptance Criteria
 
-- [ ] Pack concept is defined and recorded as a decision: a bundle of canon definitions (rules, knowledge, pipelines, agents) for a common project type, delivered into a project's .base/canon/ overlay
-- [ ] Packs require zero core changes (D-002) and honor seed-and-adopt semantics (D-018) — no committed bytes sourced outside the repo
-- [ ] A Sitecore pack is drafted as the first candidate, with an inventory of what it contains
+- [x] Pack concept is defined and recorded as a decision: a bundle of canon definitions (rules, knowledge, pipelines, agents) for a common project type, delivered into a project's .base/canon/ overlay
+- [x] Packs require zero core changes (D-002) and honor seed-and-adopt semantics (D-018) — no committed bytes sourced outside the repo
+- [x] A Sitecore pack is drafted as the first candidate, with an inventory of what it contains
