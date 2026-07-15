@@ -1,8 +1,8 @@
 ---
 id: W-0003
 title: Hook false-positives on quoted text mentioning git push
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - gates
@@ -13,6 +13,6 @@ tags:
 
 ## Acceptance Criteria
 
-- [ ] The exact W-0002 commit+push compound that was wrongly denied is permitted
-- [ ] Quoted text containing git push and main-like substrings (remains, domain) is not denied
-- [ ] Real pushes stay denied, including no-space separators like x&&git push origin main
+- [x] The exact W-0002 commit+push compound that was wrongly denied is permitted
+- [x] Quoted text containing git push and main-like substrings (remains, domain) is not denied
+- [x] Real pushes stay denied, including no-space separators like x&&git push origin main
