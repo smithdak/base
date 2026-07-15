@@ -1,8 +1,8 @@
 ---
 id: W-0007
 title: Project-type packs
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - design

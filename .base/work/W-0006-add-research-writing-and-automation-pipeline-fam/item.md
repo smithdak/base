@@ -1,8 +1,8 @@
 ---
 id: W-0006
 title: Add research, writing, and automation pipeline families
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - pipelines
