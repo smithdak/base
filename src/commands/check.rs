@@ -56,11 +56,59 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
             });
         }
     }
+    let mut warn_global_only = |kind: &str, id: &str, adopt_path: &str, usable: &str| {
+        warnings.push(format!(
+            "global-only {kind} `{id}` {usable}; copy it into `{adopt_path}` to adopt it in this project"
+        ));
+    };
+    for (id, rule) in &canon.rules {
+        if rule.source.layer == Layer::Global {
+            warn_global_only(
+                "rule",
+                id,
+                ".base/canon/rules/",
+                "is not rendered into committed surfaces",
+            );
+        }
+    }
+    for (id, agent) in &canon.agents {
+        if agent.source.layer == Layer::Global {
+            warn_global_only(
+                "agent",
+                id,
+                ".base/canon/agents/",
+                "is not rendered into committed surfaces",
+            );
+        }
+    }
+    for (id, stage) in &canon.stages {
+        if stage.source.layer == Layer::Global {
+            warn_global_only(
+                "stage",
+                id,
+                ".base/canon/pipelines/stages/",
+                "is not usable by project pipelines",
+            );
+        }
+    }
+    for (id, pipeline) in &canon.pipelines {
+        if pipeline.source.layer == Layer::Global {
+            warn_global_only(
+                "pipeline",
+                id,
+                ".base/canon/pipelines/",
+                "is not rendered into committed surfaces",
+            );
+        }
+    }
     for (path, entry) in &canon.knowledge {
         if entry.source.layer == Layer::Global {
-            warnings.push(format!(
-                "global-only knowledge `{path}` is not rendered into committed surfaces; copy it into `.base/canon/knowledge/` to adopt it in this project"
-            ));
+            warn_global_only(
+                "knowledge",
+                path,
+                ".base/canon/knowledge/",
+                "is not rendered into committed surfaces",
+            );
         }
     }
     let report = CheckReport {
