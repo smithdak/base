@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 use serde::Serialize;
 
+use crate::canon::Layer;
 use crate::config::Target;
 use crate::render::enforcement;
 
@@ -53,6 +54,13 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
                 target: target.to_string(),
                 fidelity,
             });
+        }
+    }
+    for (path, entry) in &canon.knowledge {
+        if entry.source.layer == Layer::Global {
+            warnings.push(format!(
+                "global-only knowledge `{path}` is not rendered into committed surfaces; copy it into `.base/canon/knowledge/` to adopt it in this project"
+            ));
         }
     }
     let report = CheckReport {

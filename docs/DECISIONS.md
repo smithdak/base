@@ -190,3 +190,20 @@ to. Newest entries at the bottom.
 - **Commits us to:** never adding a hand-maintained behavior mirror without an attached
   check, and treating a failing tether as "update the doc or the code deliberately," never
   as a test to silence.
+
+## D-017: Global knowledge is a library, adopted by copy
+
+- **Status:** accepted (2026-07-15)
+- **Context:** Rendering global-canon knowledge into instruction files put pointers in committed
+  output whose sources live outside the repo; one promoted lesson made `sync --check` fail on
+  every machine lacking that global canon (W-0004, reproduced). SPEC §5's "global knowledge
+  reaches every project on next sync" and D-014 could not both hold via render-time merging.
+- **Decision:** Committed surfaces render **repo-resident knowledge only**. The global canon is a
+  personal library: it seeds new projects, and an existing project adopts a lesson by copying it
+  into its own `.base/canon/knowledge/`. `base check` warns about global-only entries awaiting
+  adoption — excluded honestly, never silently. Vendoring on sync (manifest-owned copies written
+  by `base sync`) is the recorded upgrade path if multi-project use makes copy-adoption tedious.
+- **Open residual (W-0005):** global-only rules, agents, and pipelines still render into
+  committed output — the same hazard with a larger payload; they need the same treatment.
+- **Commits us to:** nothing outside the repo is ever the sole source of committed bytes, and
+  every exclusion the renderer makes is visible in `base check`.

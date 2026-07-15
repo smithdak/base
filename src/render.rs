@@ -225,19 +225,23 @@ fn render_instructions(canon: &Canon, config: &Config, target: Target) -> String
         &mut output,
         "- Work items: `.base/work/` (one folder per item; canonical file `item.md`, statuses todo|doing|review|done); run artifacts: `.base/runs/`; append-only ledger: `.base/history.jsonl`.",
     );
-    if canon.knowledge.is_empty() {
+    // Committed surfaces render repo-resident knowledge only (D-014/D-017);
+    // global-only entries are adopted by copying, and `base check` reports them.
+    let project_knowledge: Vec<&String> = canon
+        .knowledge
+        .iter()
+        .filter(|(_, entry)| entry.source.layer == Layer::Project)
+        .map(|(path, _)| path)
+        .collect();
+    if project_knowledge.is_empty() {
         line(
             &mut output,
             "- No canonical knowledge entries are currently available.",
         );
     } else {
         line(&mut output, "- Load canonical knowledge on demand from:");
-        for (path, entry) in &canon.knowledge {
-            let location = match entry.source.layer {
-                Layer::Global => format!("global canon `{path}`"),
-                Layer::Project => format!("`.base/canon/knowledge/{path}`"),
-            };
-            line(&mut output, &format!("  - {location}"));
+        for path in project_knowledge {
+            line(&mut output, &format!("  - `.base/canon/knowledge/{path}`"));
         }
     }
     output
