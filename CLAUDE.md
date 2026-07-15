@@ -12,6 +12,8 @@ Canonical definitions compile into this file. Change `.base/canon/` and run `bas
 - Keep changes scoped to the approved task and preserve unrelated user work.
 - Verify behavior in proportion to risk and report concrete evidence.
 - Do not claim completion while required work or failing checks remain.
+- Track every decision in a durable artifact: architectural choices in `docs/DECISIONS.md`,
+  actionable follow-ups as work items, run outcomes in the ledger — never only in conversation.
 
 ## Agents
 

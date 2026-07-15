@@ -142,3 +142,33 @@ to. Newest entries at the bottom.
   of that verdict.
 - **Commits us to:** stable work-item folder paths, a CLI-only four-column board, and preserving the
   distinction between checklist completion and the human outcome call.
+
+## D-014: Repo-stamped outputs compile from repo-resident canon
+
+- **Status:** accepted (2026-07-15)
+- **Context:** The fix pipeline could have been authored in the freshly initialized global canon.
+  Generated files are hash-stamped into the project manifest, so a surface sourced only from
+  `~/.base` makes `sync --check` fail on every environment lacking that global canon (verified:
+  a fresh clone with `BASE_HOME` pointed at a nonexistent directory).
+- **Decision:** Definitions that shape a repo's generated surfaces live in that repo's
+  `.base/canon/`. The global canon seeds new projects and holds personal defaults; it is never the
+  sole source of a committed surface. Promotion global→project means copying into the repo.
+- **Commits us to:** environment-independent drift checks (CI-safe, clone-safe), and accepting
+  duplication between layers as the price of reproducibility.
+
+## D-015: MCP servers are harness config, admitted by rule
+
+- **Status:** accepted (2026-07-15)
+- **Context:** MCP registration has no canon kind; each harness has a native surface (`.mcp.json`,
+  `~/.codex/config.toml`, `.vscode/mcp.json`). Every active server costs context tokens each turn
+  and widens the prompt-injection surface.
+- **Decision:** MCP stays outside canon until cross-harness duplication demands an adapter cell.
+  Admission rule: a server earns a slot only for capability a CLI cannot replicate more cheaply —
+  discoverable capability such as schema introspection, semantic search, OAuth-gated APIs without a
+  good CLI, or live interactive surfaces. Registrations default to read-only / least privilege;
+  write access is granted deliberately per server, and the active set is re-audited periodically.
+  Applied: the GitHub remote MCP server is registered in `.mcp.json` with full access granted
+  explicitly (2026-07-15), accepted knowing write-capable MCP tools bypass the Bash-bound push
+  gate; closing that side door is tracked as W-0002.
+- **Commits us to:** weighing every proposed server against its CLI alternative, and treating an
+  idle server as a cost, not a neutral.
