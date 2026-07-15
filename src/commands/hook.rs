@@ -62,39 +62,54 @@ fn denial_reason(event: &Value, default_branch: &str) -> Option<String> {
 }
 
 fn pushes_default_branch(command: &str, default_branch: &str) -> bool {
-    let normalized = command
-        .replace("&&", " ; ")
-        .replace("||", " ; ")
-        .replace('|', " ; ");
-    normalized.split(';').any(|part| {
-        let Ok(tokens) = shell_words::split(part) else {
-            return part.contains("git") && part.contains("push") && part.contains(default_branch);
-        };
-        let Some(git_index) = tokens.iter().position(|token| token == "git") else {
-            return false;
-        };
-        let Some(push_offset) = tokens[git_index + 1..]
-            .iter()
-            .position(|token| token == "push")
-        else {
-            return false;
-        };
-        let arguments = &tokens[git_index + push_offset + 2..];
-        let non_flags: Vec<&str> = arguments
-            .iter()
-            .map(String::as_str)
-            .filter(|token| !token.starts_with('-'))
-            .collect();
-
-        if non_flags.len() < 2 {
-            // An implicit push can target the checked-out default branch. Fail closed.
-            return true;
+    // Space-pad separators before tokenizing: inside quoted text this only mutates
+    // token content, so quote structure survives and a commit message stays one token.
+    let normalized = command.replace([';', '|', '&'], " ; ");
+    match shell_words::split(&normalized) {
+        Ok(tokens) => tokens
+            .split(|token| token == ";")
+            .any(|command_tokens| command_pushes_default_branch(command_tokens, default_branch)),
+        // Genuinely unparseable input fails closed, but on word boundaries: prose that
+        // merely mentions git pushes must not trip the gate.
+        Err(_) => {
+            let words: Vec<&str> = command
+                .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '-' || c == '/'))
+                .filter(|word| !word.is_empty())
+                .collect();
+            words.contains(&"git")
+                && words.contains(&"push")
+                && words.iter().any(|word| {
+                    *word == default_branch || word.ends_with(&format!("/{default_branch}"))
+                })
         }
-        non_flags[1..].iter().any(|refspec| {
-            *refspec == default_branch
-                || refspec.ends_with(&format!(":{default_branch}"))
-                || refspec.ends_with(&format!("/heads/{default_branch}"))
-        })
+    }
+}
+
+fn command_pushes_default_branch(tokens: &[String], default_branch: &str) -> bool {
+    let Some(git_index) = tokens.iter().position(|token| token == "git") else {
+        return false;
+    };
+    let Some(push_offset) = tokens[git_index + 1..]
+        .iter()
+        .position(|token| token == "push")
+    else {
+        return false;
+    };
+    let arguments = &tokens[git_index + push_offset + 2..];
+    let non_flags: Vec<&str> = arguments
+        .iter()
+        .map(String::as_str)
+        .filter(|token| !token.starts_with('-'))
+        .collect();
+
+    if non_flags.len() < 2 {
+        // An implicit push can target the checked-out default branch. Fail closed.
+        return true;
+    }
+    non_flags[1..].iter().any(|refspec| {
+        *refspec == default_branch
+            || refspec.ends_with(&format!(":{default_branch}"))
+            || refspec.ends_with(&format!("/heads/{default_branch}"))
     })
 }
 
@@ -153,5 +168,36 @@ mod tests {
             "main"
         ));
         assert!(!pushes_default_branch("cargo test", "main"));
+    }
+
+    #[test]
+    fn permits_quoted_text_mentioning_pushes() {
+        assert!(!pushes_default_branch(
+            r#"git commit -m "x; git push remains""#,
+            "main"
+        ));
+        assert!(!pushes_default_branch(
+            "git commit -q -m \"$(cat <<'EOF'\nbound only to Bash git push;\nchanges remain the review path\nEOF\n)\" && git push -u origin feat/w-0002-mcp-gate",
+            "main"
+        ));
+        assert!(!pushes_default_branch(
+            r#"echo 'case: git commit -m "x; git push remains" - expect deny'"#,
+            "main"
+        ));
+    }
+
+    #[test]
+    fn catches_no_space_separators() {
+        assert!(pushes_default_branch("cd x&&git push origin main", "main"));
+        assert!(pushes_default_branch("true||git push", "main"));
+    }
+
+    #[test]
+    fn unparseable_input_fails_closed_on_words() {
+        assert!(pushes_default_branch("git push origin main \"oops", "main"));
+        assert!(!pushes_default_branch(
+            "echo \"unbalanced git push remains",
+            "main"
+        ));
     }
 }

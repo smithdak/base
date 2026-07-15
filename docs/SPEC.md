@@ -145,6 +145,10 @@ files base generated or owns (manifest-listed), never user files.
 | `base work <list\|new\|show\|move\|board>` | kanban front-end over work-item folders |
 | `base log [<slug>]` | inspect `history.jsonl` / a run folder |
 
+This table describes current behavior, so it is tethered (D-016): `tests/spec.rs` compares
+it against the real clap definition and fails `cargo test` when they disagree in either
+direction.
+
 ## 8. v1 definition of done
 
 1. `base init` scaffolds global and project layouts.
