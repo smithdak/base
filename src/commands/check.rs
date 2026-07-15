@@ -167,10 +167,18 @@ fn is_executable(path: &Path) -> bool {
 }
 
 fn print_notes(config: &crate::config::Config) {
+    let artifact_gates = config.gates.iter().any(|gate| {
+        gate.kind == crate::config::GateKind::StageApproval && gate.satisfied_by.is_some()
+    });
     println!();
     if config.targets.contains(&Target::Claude) {
+        let stage_note = if artifact_gates {
+            "stage approval is enforced through approval artifacts: a pending `*.request` denies mutating tools until `base approve` records the verdict"
+        } else {
+            "stage approval is prompt-assisted"
+        };
         println!(
-            "claude: standing denial uses a project permission deny plus PreToolUse hooks over Bash git pushes and GitHub MCP branch writes (PR merges stay the review path); stage approval is prompt-assisted"
+            "claude: standing denial uses a project permission deny plus PreToolUse hooks over Bash git pushes and GitHub MCP branch writes (PR merges stay the review path); {stage_note}"
         );
     }
     if config.targets.contains(&Target::Codex) {

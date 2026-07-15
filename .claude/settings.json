@@ -12,8 +12,7 @@
               "main"
             ],
             "command": "base",
-            "if": "Bash(git push *)",
-            "statusMessage": "Checking base standing denials",
+            "statusMessage": "Checking base gates",
             "timeout": 10,
             "type": "command"
           }
@@ -30,7 +29,24 @@
               "main"
             ],
             "command": "base",
-            "statusMessage": "Checking base standing denials",
+            "statusMessage": "Checking base gates",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write|NotebookEdit"
+      },
+      {
+        "hooks": [
+          {
+            "args": [
+              "__hook",
+              "claude-pre-tool",
+              "--default-branch",
+              "main"
+            ],
+            "command": "base",
+            "statusMessage": "Checking base gates",
             "timeout": 10,
             "type": "command"
           }

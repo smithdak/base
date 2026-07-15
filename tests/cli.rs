@@ -135,9 +135,23 @@ fn removing_a_gate_removes_its_generated_bindings() {
     success(project.path(), home.path(), &["sync"]);
     success(project.path(), home.path(), &["sync", "--check"]);
 
-    assert!(!project.path().join(".claude/settings.json").exists());
+    // The artifact gate (default plan-approval) keeps its hooks, but the
+    // removed standing denial takes its permission deny rules with it.
+    let settings = fs::read_to_string(project.path().join(".claude/settings.json")).unwrap();
+    assert!(!settings.contains("permissions"));
+    assert!(settings.contains("Edit|Write|NotebookEdit"));
     assert!(!project.path().join(".codex/rules/base.rules").exists());
     assert!(project.path().join("CLAUDE.md").is_file());
+
+    // A prose-only plan-approval (no artifact) leaves nothing to hook at all.
+    let mut config = base_cli::config::Config::load(project.path()).unwrap();
+    for gate in &mut config.gates {
+        gate.satisfied_by = None;
+    }
+    config.save(project.path()).unwrap();
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["sync", "--check"]);
+    assert!(!project.path().join(".claude/settings.json").exists());
 }
 
 #[test]
@@ -485,9 +499,25 @@ fn check_downgrades_claude_hook_enforcement_when_base_is_off_path() {
     assert!(missing.status.success());
     let report: serde_json::Value = serde_json::from_slice(&missing.stdout).unwrap();
     assert_eq!(claude_denial(&report), "assisted");
-    let warning = report["warnings"][0].as_str().unwrap();
-    assert!(warning.contains("PATH"));
-    assert!(warning.contains("never-push-default-branch"));
+    // Both enforced cells (artifact plan-approval + standing denial) downgrade
+    // with their own warnings when the hook binary cannot run.
+    let warnings: Vec<&str> = report["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|warning| warning.as_str())
+        .collect();
+    assert!(warnings.iter().all(|warning| warning.contains("PATH")));
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("never-push-default-branch"))
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("plan-approval"))
+    );
 
     let binary_dir = Path::new(env!("CARGO_BIN_EXE_base")).parent().unwrap();
     let resolved = base_with_path(
@@ -500,6 +530,80 @@ fn check_downgrades_claude_hook_enforcement_when_base_is_off_path() {
     let report: serde_json::Value = serde_json::from_slice(&resolved.stdout).unwrap();
     assert_eq!(claude_denial(&report), "enforced");
     assert_eq!(report["warnings"], serde_json::json!([]));
+}
+
+#[test]
+fn approve_writes_an_immutable_stamped_verdict() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    fs::create_dir_all(project.path().join(".base/runs/2026-07-15-demo")).unwrap();
+
+    let approved = success(
+        project.path(),
+        home.path(),
+        &[
+            "approve",
+            "2026-07-15-demo",
+            "plan-approval",
+            "--by",
+            "tester",
+            "--note",
+            "standing: session goal directive",
+            "--json",
+        ],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&approved.stdout).unwrap();
+    assert_eq!(report["verdict"], "approved");
+    assert_eq!(report["by"], "tester");
+
+    let artifact = project
+        .path()
+        .join(".base/runs/2026-07-15-demo/approvals/plan-approval.md");
+    let record = fs::read_to_string(&artifact).unwrap();
+    assert!(record.contains("verdict: approved"));
+    assert!(record.contains("by: tester"));
+    assert!(record.contains("note: standing: session goal directive"));
+
+    // Verdicts are immutable; unknown gates and runs are refused.
+    let duplicate = base(
+        project.path(),
+        home.path(),
+        &["approve", "2026-07-15-demo", "plan-approval"],
+    );
+    assert!(!duplicate.status.success());
+    assert!(
+        String::from_utf8_lossy(&duplicate.stderr).contains("already exists"),
+        "duplicate verdict is refused"
+    );
+    let unknown_gate = base(
+        project.path(),
+        home.path(),
+        &["approve", "2026-07-15-demo", "no-such-gate"],
+    );
+    assert!(!unknown_gate.status.success());
+    let unknown_run = base(
+        project.path(),
+        home.path(),
+        &["approve", "no-such-run", "plan-approval", "--deny"],
+    );
+    assert!(!unknown_run.status.success());
+
+    // A denial is a first-class verdict on a fresh run.
+    fs::create_dir_all(project.path().join(".base/runs/2026-07-15-denied")).unwrap();
+    let denied = success(
+        project.path(),
+        home.path(),
+        &[
+            "approve",
+            "2026-07-15-denied",
+            "plan-approval",
+            "--deny",
+            "--json",
+        ],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&denied.stdout).unwrap();
+    assert_eq!(report["verdict"], "denied");
 }
 
 #[test]

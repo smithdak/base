@@ -83,9 +83,32 @@ pub enum Command {
     Work(WorkArgs),
     /// Inspect run history or one run folder.
     Log(LogArgs),
+    /// Record a stage-gate approval or denial as a run artifact.
+    Approve(ApproveArgs),
     /// Internal harness-hook entrypoint.
     #[command(name = "__hook", hide = true)]
     Hook(HookArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ApproveArgs {
+    /// Run slug (folder name under .base/runs/).
+    pub run: String,
+
+    /// Stage-approval gate ID.
+    pub gate: String,
+
+    /// Record a denial instead of an approval.
+    #[arg(long)]
+    pub deny: bool,
+
+    /// Who is deciding. Defaults to git user.name, then the OS username.
+    #[arg(long, value_name = "WHO")]
+    pub by: Option<String>,
+
+    /// Context for the record, e.g. the standing directive being cited.
+    #[arg(long, value_name = "TEXT")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Args)]

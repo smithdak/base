@@ -33,7 +33,7 @@ Claude Code agent definitions are available under `.claude/agents/`.
 
 ## Gates
 
-- **plan-approval** (`assisted`): Do not execute until the user explicitly approves the written plan.
+- **plan-approval** (`enforced`): Do not execute until the user explicitly approves the written plan.
 - **never-push-default-branch** (`enforced`): Never push directly to the repository default branch.
 - The repository default branch is `main`.
 

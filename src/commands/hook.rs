@@ -1,9 +1,11 @@
 use std::io::{self, Read};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 
 use crate::cli::{HookArgs, HookCommand};
+use crate::find_project_root;
 
 pub fn run(args: HookArgs) -> Result<()> {
     match args.command {
@@ -15,7 +17,15 @@ fn claude_pre_tool(default_branch: &str) -> Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
     let event: Value = serde_json::from_str(&input).context("invalid Claude hook JSON")?;
-    if let Some(reason) = denial_reason(&event, default_branch) {
+    let denial = denial_reason(&event, default_branch).or_else(|| {
+        // Gate scan fails open: a filesystem oddity must not brick the session.
+        // The standing denial above keeps its fail-closed posture.
+        std::env::current_dir()
+            .ok()
+            .and_then(|cwd| find_project_root(&cwd).ok())
+            .and_then(|root| pending_gate_reason(&root))
+    });
+    if let Some(reason) = denial {
         println!(
             "{}",
             json!({
@@ -28,6 +38,59 @@ fn claude_pre_tool(default_branch: &str) -> Result<()> {
         );
     }
     Ok(())
+}
+
+/// A `<path>.request` file whose derived response `<path>` is absent means a
+/// stage gate awaits a human verdict: deny every mutating tool until then.
+fn pending_gate_reason(project_root: &Path) -> Option<String> {
+    let runs = project_root.join(".base/runs");
+    if !runs.is_dir() {
+        return None;
+    }
+    for entry in walkdir::WalkDir::new(&runs)
+        .min_depth(2)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        let path = entry.path();
+        let Some(response) = path.to_str().and_then(|p| p.strip_suffix(".request")) else {
+            continue;
+        };
+        if Path::new(response).exists() {
+            continue;
+        }
+        let pending = path
+            .strip_prefix(project_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let run_and_gate = run_and_gate(&runs, path);
+        return Some(format!(
+            "base stage gate: {run_and_gate} awaits a human verdict ({pending} has no response). Record one from your own terminal: `base approve {}` or `base approve {} --deny`. Mutating tools stay denied until the verdict artifact exists.",
+            run_and_gate, run_and_gate
+        ));
+    }
+    None
+}
+
+/// `<run-slug> <gate-id>` extracted from a pending request path, ready to be
+/// pasted after `base approve`.
+fn run_and_gate(runs: &Path, request: &Path) -> String {
+    let slug = request
+        .strip_prefix(runs)
+        .ok()
+        .and_then(|rel| rel.components().next())
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let gate = request
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let gate = gate
+        .trim_end_matches(".request")
+        .trim_end_matches(".md")
+        .to_owned();
+    format!("{slug} {gate}")
 }
 
 fn denial_reason(event: &Value, default_branch: &str) -> Option<String> {
@@ -115,7 +178,35 @@ fn command_pushes_default_branch(tokens: &[String], default_branch: &str) -> boo
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
+
+    #[test]
+    fn pending_request_denies_until_answered() {
+        let project = tempfile::TempDir::new().unwrap();
+        let run = project.path().join(".base/runs/2026-07-15-demo/approvals");
+        fs::create_dir_all(&run).unwrap();
+
+        // No request → no block.
+        assert!(pending_gate_reason(project.path()).is_none());
+
+        // Unanswered request → deny, naming run, gate, and the approve command.
+        fs::write(run.join("plan-approval.md.request"), "what needs approval").unwrap();
+        let reason = pending_gate_reason(project.path()).expect("pending gate denies");
+        assert!(reason.contains("2026-07-15-demo plan-approval"), "{reason}");
+        assert!(reason.contains("base approve"), "{reason}");
+
+        // Any recorded verdict lifts the mechanical block.
+        fs::write(run.join("plan-approval.md"), "verdict").unwrap();
+        assert!(pending_gate_reason(project.path()).is_none());
+    }
+
+    #[test]
+    fn projects_without_runs_do_not_scan() {
+        let project = tempfile::TempDir::new().unwrap();
+        assert!(pending_gate_reason(project.path()).is_none());
+    }
 
     #[test]
     fn catches_explicit_and_implicit_default_pushes() {

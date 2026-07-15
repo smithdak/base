@@ -79,6 +79,27 @@ impl Config {
             if !gate_ids.insert(gate.id.as_str()) {
                 bail!("gate `{}` is declared more than once", gate.id);
             }
+            if let Some(path) = &gate.satisfied_by {
+                if gate.kind != GateKind::StageApproval {
+                    bail!(
+                        "gate `{}`: satisfied-by applies only to stage-approval gates",
+                        gate.id
+                    );
+                }
+                let clean = path.trim();
+                // has_root catches `/foo` on Windows too (where it is not
+                // `is_absolute`); `:` blocks drive designators either way.
+                if clean.is_empty()
+                    || Path::new(clean).has_root()
+                    || clean.contains(':')
+                    || clean.split(['/', '\\']).any(|part| part == "..")
+                {
+                    bail!(
+                        "gate `{}`: satisfied-by must be a relative path inside the run folder",
+                        gate.id
+                    );
+                }
+            }
         }
         Ok(())
     }
@@ -126,6 +147,27 @@ pub struct Gate {
     pub id: String,
     pub kind: GateKind,
     pub description: String,
+    /// Run-folder-relative path of the artifact that satisfies this stage gate.
+    #[serde(
+        rename = "satisfied-by",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub satisfied_by: Option<String>,
+}
+
+impl Gate {
+    /// The response artifact path, relative to the run folder.
+    pub fn approval_path(&self) -> String {
+        self.satisfied_by
+            .clone()
+            .unwrap_or_else(|| format!("approvals/{}.md", self.id))
+    }
+
+    /// The pending-request marker derived from the response path.
+    pub fn request_path(&self) -> String {
+        format!("{}.request", self.approval_path())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -177,11 +219,13 @@ fn default_gates() -> Vec<Gate> {
             kind: GateKind::StageApproval,
             description: "Do not execute until the user explicitly approves the written plan."
                 .to_owned(),
+            satisfied_by: Some("approvals/plan-approval.md".to_owned()),
         },
         Gate {
             id: "never-push-default-branch".to_owned(),
             kind: GateKind::StandingDenial,
             description: "Never push directly to the repository default branch.".to_owned(),
+            satisfied_by: None,
         },
     ]
 }
@@ -202,5 +246,31 @@ mod tests {
         assert!(validate_id("plan-approval", "gate").is_ok());
         assert!(validate_id("Plan", "gate").is_err());
         assert!(validate_id("2plan", "gate").is_err());
+    }
+
+    #[test]
+    fn satisfied_by_is_constrained_to_stage_gates_and_safe_paths() {
+        let mut config = Config::default();
+        config.gates[1].satisfied_by = Some("approvals/deny.md".to_owned());
+        assert!(config.validate().is_err(), "standing denial cannot declare");
+        let mut config = Config::default();
+        config.gates[0].satisfied_by = Some("../outside.md".to_owned());
+        assert!(config.validate().is_err(), "path escapes the run folder");
+        let mut config = Config::default();
+        config.gates[0].satisfied_by = Some("/absolute.md".to_owned());
+        assert!(config.validate().is_err(), "absolute path rejected");
+        assert!(Config::default().validate().is_ok());
+    }
+
+    #[test]
+    fn approval_paths_derive_mechanically() {
+        let gate = Config::default().gate("plan-approval").unwrap().clone();
+        assert_eq!(gate.approval_path(), "approvals/plan-approval.md");
+        assert_eq!(gate.request_path(), "approvals/plan-approval.md.request");
+        let bare = Gate {
+            satisfied_by: None,
+            ..gate
+        };
+        assert_eq!(bare.approval_path(), "approvals/plan-approval.md");
     }
 }

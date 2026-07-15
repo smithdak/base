@@ -45,38 +45,51 @@ fn render_claude(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> R
         );
     }
 
-    if has_default_branch_denial(config) {
-        let settings = json!({
+    let denial = has_default_branch_denial(config);
+    let artifact_gates = has_artifact_gate(config);
+    if denial || artifact_gates {
+        let hook_entry = |conditional: bool| {
+            let mut entry = json!({
+                "type": "command",
+                "command": "base",
+                "args": ["__hook", "claude-pre-tool", "--default-branch", config.default_branch],
+                "timeout": 10,
+                "statusMessage": "Checking base gates"
+            });
+            // Without artifact gates the Bash hook only needs to see pushes;
+            // with them it must see every command to hold a pending gate.
+            if conditional && !artifact_gates {
+                entry["if"] = json!("Bash(git push *)");
+            }
+            entry
+        };
+        let mut pre_tool_use = vec![json!({
+            "matcher": "Bash",
+            "hooks": [hook_entry(true)]
+        })];
+        if artifact_gates {
+            pre_tool_use.push(json!({
+                "matcher": "Edit|Write|NotebookEdit",
+                "hooks": [hook_entry(false)]
+            }));
+        }
+        pre_tool_use.push(json!({
+            "matcher": "mcp__github__.*",
+            "hooks": [hook_entry(false)]
+        }));
+
+        let mut settings = json!({
             "$schema": "https://json.schemastore.org/claude-code-settings.json",
-            "permissions": {
+            "hooks": { "PreToolUse": pre_tool_use }
+        });
+        if denial {
+            settings["permissions"] = json!({
                 "deny": [
                     format!("Bash(git push * {}*)", config.default_branch),
                     format!("Bash(git push * HEAD:{0}*)", config.default_branch)
                 ]
-            },
-            "hooks": {
-                "PreToolUse": [{
-                    "matcher": "Bash",
-                    "hooks": [{
-                        "type": "command",
-                        "if": "Bash(git push *)",
-                        "command": "base",
-                        "args": ["__hook", "claude-pre-tool", "--default-branch", config.default_branch],
-                        "timeout": 10,
-                        "statusMessage": "Checking base standing denials"
-                    }]
-                }, {
-                    "matcher": "mcp__github__.*",
-                    "hooks": [{
-                        "type": "command",
-                        "command": "base",
-                        "args": ["__hook", "claude-pre-tool", "--default-branch", config.default_branch],
-                        "timeout": 10,
-                        "statusMessage": "Checking base standing denials"
-                    }]
-                }]
-            }
-        });
+            });
+        }
         let mut settings_source =
             serde_json::to_string_pretty(&settings).context("cannot serialize Claude settings")?;
         settings_source.push('\n');
@@ -86,6 +99,13 @@ fn render_claude(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> R
         );
     }
     Ok(())
+}
+
+fn has_artifact_gate(config: &Config) -> bool {
+    config
+        .gates
+        .iter()
+        .any(|gate| gate.kind == GateKind::StageApproval && gate.satisfied_by.is_some())
 }
 
 fn render_codex(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> Result<()> {
@@ -352,13 +372,21 @@ fn render_pipeline(canon: &Canon, config: &Config, pipeline: &Pipeline, target: 
             line(&mut output, "");
             line(&mut output, &format!("### Gate: {}", gate.id));
             line(&mut output, "");
-            line(
-                &mut output,
-                &format!(
+            let prose = if gate.kind == GateKind::StageApproval && gate.satisfied_by.is_some() {
+                format!(
+                    "STOP after completing this stage. {} Request the verdict by writing `{}` in the run folder describing what needs approval, then stop. The verdict is recorded from outside the session: `base approve <run-slug> {}` (or `--deny`) writes `{}` — a standing directive counts only when recorded that way, with `--note` citing it. Never create the verdict artifact yourself. If the recorded verdict is `denied`, skip to `record` with outcome `aborted`.",
+                    gate.description,
+                    gate.request_path(),
+                    gate.id,
+                    gate.approval_path()
+                )
+            } else {
+                format!(
                     "STOP after completing this stage. {} Do not begin the next stage until the user gives explicit approval in this conversation. If approval is denied or unavailable, skip to `record` with outcome `aborted`.",
                     gate.description
-                ),
-            );
+                )
+            };
+            line(&mut output, &prose);
         }
     }
     output
@@ -389,6 +417,9 @@ pub fn enforcement(gate: &Gate, target: Target) -> &'static str {
             "assisted"
         }
         (GateKind::StandingDenial, _) => "advisory",
+        // With a declared approval artifact, the Claude hook denies mutating
+        // tools until the verdict file exists; without one, prose only.
+        (GateKind::StageApproval, Target::Claude) if gate.satisfied_by.is_some() => "enforced",
         (GateKind::StageApproval, Target::Claude | Target::Codex) => "assisted",
         (GateKind::StageApproval, Target::Copilot) => "advisory",
     }
@@ -448,13 +479,22 @@ mod tests {
         let config = Config::default();
         let stage = config.gate("plan-approval").unwrap();
         let denial = config.gate("never-push-default-branch").unwrap();
-        assert_eq!(enforcement(stage, Target::Claude), "assisted");
+        // The default plan-approval gate declares its artifact → enforced on Claude only.
+        assert_eq!(enforcement(stage, Target::Claude), "enforced");
+        assert_eq!(enforcement(stage, Target::Codex), "assisted");
+        assert_eq!(enforcement(stage, Target::Copilot), "advisory");
+        let prose_only = Gate {
+            satisfied_by: None,
+            ..stage.clone()
+        };
+        assert_eq!(enforcement(&prose_only, Target::Claude), "assisted");
         assert_eq!(enforcement(denial, Target::Claude), "enforced");
         assert_eq!(enforcement(denial, Target::Copilot), "advisory");
         let generic = Gate {
             id: "never-delete-production".to_owned(),
             kind: GateKind::StandingDenial,
             description: "Never delete production.".to_owned(),
+            satisfied_by: None,
         };
         assert_eq!(enforcement(&generic, Target::Claude), "advisory");
     }
