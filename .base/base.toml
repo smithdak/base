@@ -1,0 +1,29 @@
+version = 1
+targets = [
+    "claude",
+    "codex",
+    "copilot",
+]
+default_branch = "main"
+
+[[gates]]
+id = "plan-approval"
+kind = "stage-approval"
+description = "Do not execute until the user explicitly approves the written plan."
+
+[[gates]]
+id = "never-push-default-branch"
+kind = "standing-denial"
+description = "Never push directly to the repository default branch."
+
+[generated]
+".agents/skills/build/SKILL.md" = "1574f2e0864dd9387064209815aad9693c8a8ba94d3ed6c83461588648a505d8"
+".claude/agents/builder.md" = "954319aefa053be529e7accd974af42a09b827e4a2de953c9065258de5d91fa4"
+".claude/agents/reviewer.md" = "d583f52cb3b5d278aa8e75280c0938bc08289e89014e5520856bcbdf56c945b5"
+".claude/settings.json" = "f1fa717610325d90b5f2629a9b8ef1bcfd74ab0a46514a3fb53d391a0d655ae8"
+".claude/skills/build/SKILL.md" = "18ee6236c4b104cc8ae3af433d5c673bf5419c97af369ef0178b3627468f34a6"
+".codex/rules/base.rules" = "e3b7dadb6e1475098fbd3644f02aaaff19899e780fe98a104dc09956b7c08e18"
+".github/copilot-instructions.md" = "63d211490a10939a0a6de4106990d7d6dd22b14aab0aebab163877b2927c3228"
+".github/prompts/build.prompt.md" = "c9ffdd3b5b95f274cfc9b35e08e0d9ef98b8edbf3e12270f6035c77e341d4d76"
+"AGENTS.md" = "7c79b82b818dae233a9dabfc86704b646dc6b01d950f6b734da56e02312cee1a"
+"CLAUDE.md" = "c4333e0963123520c5c705a4b449ae0e5fd2d0f088e115eb73b0842f32b7832f"
