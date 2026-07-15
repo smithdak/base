@@ -1,0 +1,3 @@
+# base sync stamps SHA-256 hashes of generated files into .base/base.toml;
+# CRLF checkouts would change the bytes and report false drift. Keep LF everywhere.
+* text=auto eol=lf
