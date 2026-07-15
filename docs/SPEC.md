@@ -116,8 +116,10 @@ All under `<repo>/.base/`, committed with the project.
   `pipeline`, `harness`, `outcome`, `paths`. Every pipeline's `record` stage writes it —
   including aborts.
 - **`knowledge/`** — project-tier lessons. Promotion path: run artifact → project
-  `knowledge/` → global `canon/knowledge/` (a file move; CLI helper later). Global
-  knowledge reaches every project on next `sync`.
+  `knowledge/` → global `canon/knowledge/` (a file move; CLI helper later). The global canon is
+  the personal library: it seeds new projects, and an existing project adopts a lesson by copying
+  it into its own `.base/canon/knowledge/`. Committed surfaces render repo-resident knowledge
+  only (D-014/D-017); `base check` reports global-only entries awaiting adoption.
 
 ## 6. Gates
 
@@ -161,7 +163,7 @@ direction.
    three targets.
 6. `work/`, `runs/`, and `history.jsonl` are written by real runs, including abort paths.
 7. One lesson has completed the knowledge loop: captured in a run, promoted to global
-   canon, visible in another project after `sync`.
+   canon, adopted by copy into another project, and visible there after `sync`.
 
 ## 9. Non-goals (v1)
 

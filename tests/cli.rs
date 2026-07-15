@@ -503,6 +503,38 @@ fn check_downgrades_claude_hook_enforcement_when_base_is_off_path() {
 }
 
 #[test]
+fn global_only_knowledge_stays_out_of_generated_output() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    success(project.path(), home.path(), &["sync"]);
+    let baseline = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+
+    fs::create_dir_all(home.path().join("canon/knowledge")).unwrap();
+    fs::write(
+        home.path().join("canon/knowledge/global-lesson.md"),
+        "# Global lesson\n",
+    )
+    .unwrap();
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["sync", "--check"]);
+
+    let with_global = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert_eq!(baseline, with_global);
+    assert!(!with_global.contains("global-lesson"));
+
+    let check = success(project.path(), home.path(), &["check", "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&check.stdout).unwrap();
+    assert!(
+        report["warnings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|warning| warning.as_str().unwrap().contains("global-lesson"))
+    );
+}
+
+#[test]
 fn project_canon_overrides_global_canon_by_id() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
