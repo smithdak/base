@@ -535,6 +535,96 @@ fn global_only_knowledge_stays_out_of_generated_output() {
 }
 
 #[test]
+fn global_only_definitions_stay_out_of_generated_output() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    success(project.path(), home.path(), &["sync"]);
+    let baseline = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+
+    fs::create_dir_all(home.path().join("canon/rules")).unwrap();
+    fs::create_dir_all(home.path().join("canon/agents")).unwrap();
+    fs::create_dir_all(home.path().join("canon/pipelines/stages")).unwrap();
+    fs::write(
+        home.path().join("canon/rules/no-force-push.md"),
+        "---\nid: no-force-push\n---\n\nNever force-push shared branches.\n",
+    )
+    .unwrap();
+    fs::write(
+        home.path().join("canon/agents/researcher.md"),
+        "---\nid: researcher\ndescription: Read-only exploration agent.\n---\n\nExplore; never edit.\n",
+    )
+    .unwrap();
+    fs::write(
+        home.path().join("canon/pipelines/stages/deploy.md"),
+        "---\nid: deploy\n---\n\nShip the artifact.\n",
+    )
+    .unwrap();
+    fs::write(
+        home.path().join("canon/pipelines/ship.md"),
+        "---\nid: ship\ndescription: Deploy and record.\nstages:\n  - use: deploy\n  - use: record\n---\n\nShip it.\n",
+    )
+    .unwrap();
+
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["sync", "--check"]);
+    let with_global = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert_eq!(baseline, with_global);
+    assert!(!project.path().join(".claude/agents/researcher.md").exists());
+    assert!(!project.path().join(".claude/skills/ship").exists());
+    assert!(
+        !project
+            .path()
+            .join(".github/prompts/ship.prompt.md")
+            .exists()
+    );
+
+    let check = success(project.path(), home.path(), &["check", "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&check.stdout).unwrap();
+    let warnings: Vec<String> = report["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|warning| warning.as_str().unwrap().to_owned())
+        .collect();
+    for needle in [
+        "rule `no-force-push`",
+        "agent `researcher`",
+        "stage `deploy`",
+        "pipeline `ship`",
+    ] {
+        assert!(
+            warnings.iter().any(|warning| warning.contains(needle)),
+            "missing warning for {needle}: {warnings:?}"
+        );
+    }
+}
+
+#[test]
+fn project_pipeline_cannot_reference_global_only_stage() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    fs::create_dir_all(home.path().join("canon/pipelines/stages")).unwrap();
+    fs::write(
+        home.path().join("canon/pipelines/stages/deploy.md"),
+        "---\nid: deploy\n---\n\nShip the artifact.\n",
+    )
+    .unwrap();
+    fs::write(
+        project.path().join(".base/canon/pipelines/ship.md"),
+        "---\nid: ship\ndescription: Deploy and record.\nstages:\n  - use: deploy\n  - use: record\n---\n\nShip it.\n",
+    )
+    .unwrap();
+
+    let failed = base(project.path(), home.path(), &["check"]);
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("references global-only stage `deploy`"));
+    assert!(stderr.contains("copy the stage into `.base/canon/pipelines/stages/`"));
+}
+
+#[test]
 fn project_canon_overrides_global_canon_by_id() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();

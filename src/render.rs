@@ -30,14 +30,14 @@ fn render_claude(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> R
         render_instructions(canon, config, Target::Claude),
     );
 
-    for agent in canon.agents.values() {
+    for agent in project_agents(canon) {
         insert_text(
             files,
             &format!(".claude/agents/{}.md", agent.meta.id),
             render_claude_agent(agent),
         );
     }
-    for pipeline in canon.pipelines.values() {
+    for pipeline in project_pipelines(canon) {
         insert_text(
             files,
             &format!(".claude/skills/{}/SKILL.md", pipeline.meta.id),
@@ -94,7 +94,7 @@ fn render_codex(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> Re
         "AGENTS.md",
         render_instructions(canon, config, Target::Codex),
     );
-    for pipeline in canon.pipelines.values() {
+    for pipeline in project_pipelines(canon) {
         insert_text(
             files,
             &format!(".agents/skills/{}/SKILL.md", pipeline.meta.id),
@@ -133,7 +133,7 @@ fn render_copilot(files: &mut RenderedFiles, canon: &Canon, config: &Config) -> 
         ".github/copilot-instructions.md",
         render_instructions(canon, config, Target::Copilot),
     );
-    for pipeline in canon.pipelines.values() {
+    for pipeline in project_pipelines(canon) {
         insert_text(
             files,
             &format!(".github/prompts/{}.prompt.md", pipeline.meta.id),
@@ -155,7 +155,11 @@ fn render_instructions(canon: &Canon, config: &Config, target: Target) -> String
     );
     line(&mut output, "");
     line(&mut output, "## Rules");
-    for rule in canon.rules.values() {
+    for rule in canon
+        .rules
+        .values()
+        .filter(|rule| rule.source.layer == Layer::Project)
+    {
         line(&mut output, "");
         line(&mut output, &format!("### {}", title(&rule.meta.id)));
         line(&mut output, "");
@@ -175,7 +179,7 @@ fn render_instructions(canon: &Canon, config: &Config, target: Target) -> String
             "These are advisory roles. Use their posture when the task calls for it:",
         ),
     }
-    for agent in canon.agents.values() {
+    for agent in project_agents(canon) {
         line(
             &mut output,
             &format!("- **{}** — {}", agent.meta.id, agent.meta.description),
@@ -185,7 +189,7 @@ fn render_instructions(canon: &Canon, config: &Config, target: Target) -> String
     line(&mut output, "");
     line(&mut output, "## Pipelines");
     line(&mut output, "");
-    for pipeline in canon.pipelines.values() {
+    for pipeline in project_pipelines(canon) {
         let invocation = match target {
             Target::Claude => format!("`/{}`", pipeline.meta.id),
             Target::Codex => format!("`${}`", pipeline.meta.id),
@@ -358,6 +362,22 @@ fn render_pipeline(canon: &Canon, config: &Config, pipeline: &Pipeline, target: 
         }
     }
     output
+}
+
+// Committed surfaces compile from repo-resident definitions only (D-017/D-018);
+// global-only entries are library items adopted by copy, reported by `base check`.
+fn project_agents(canon: &Canon) -> impl Iterator<Item = &Agent> {
+    canon
+        .agents
+        .values()
+        .filter(|agent| agent.source.layer == Layer::Project)
+}
+
+fn project_pipelines(canon: &Canon) -> impl Iterator<Item = &Pipeline> {
+    canon
+        .pipelines
+        .values()
+        .filter(|pipeline| pipeline.source.layer == Layer::Project)
 }
 
 pub fn enforcement(gate: &Gate, target: Target) -> &'static str {

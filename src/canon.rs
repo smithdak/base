@@ -50,9 +50,18 @@ impl Canon {
                 bail!("pipeline `{}` has no stages", pipeline.meta.id);
             }
             for stage_ref in &pipeline.meta.stages {
-                if !self.stages.contains_key(&stage_ref.use_stage) {
+                let Some(stage) = self.stages.get(&stage_ref.use_stage) else {
                     bail!(
                         "pipeline `{}` references missing stage `{}`",
+                        pipeline.meta.id,
+                        stage_ref.use_stage
+                    );
+                };
+                // Stages inline into rendered skills, so a project pipeline built on a
+                // global-only stage would commit bytes the repo cannot reproduce (D-018).
+                if pipeline.source.layer == Layer::Project && stage.source.layer == Layer::Global {
+                    bail!(
+                        "project pipeline `{}` references global-only stage `{}`; copy the stage into `.base/canon/pipelines/stages/` to adopt it",
                         pipeline.meta.id,
                         stage_ref.use_stage
                     );

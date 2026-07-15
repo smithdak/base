@@ -1,8 +1,8 @@
 ---
 id: W-0004
 title: Reconcile global knowledge pointers with reproducible output
-status: review
-verdict: pending
+status: done
+verdict: pass
 created: 2026-07-15
 tags:
 - design

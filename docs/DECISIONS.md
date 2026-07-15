@@ -207,3 +207,22 @@ to. Newest entries at the bottom.
   committed output — the same hazard with a larger payload; they need the same treatment.
 - **Commits us to:** nothing outside the repo is ever the sole source of committed bytes, and
   every exclusion the renderer makes is visible in `base check`.
+
+## D-018: The whole global layer is seed-and-adopt
+
+- **Status:** accepted (2026-07-15)
+- **Context:** W-0005 reproduced D-017's hazard for the remaining canon kinds, with a larger
+  payload: one global-only rule/agent/stage/pipeline made a single `sync` write seven files —
+  full rule bodies into all three instruction files plus four brand-new generated files — all
+  irreproducible without that global canon. Stages compound it: they inline into pipeline skills,
+  so per-kind render filters alone would still let a project pipeline smuggle global stage bytes
+  into committed output.
+- **Decision:** D-017's rule covers every canon kind. Committed surfaces compile from
+  repo-resident definitions only; the global layer seeds new projects and serves as a library
+  adopted by copy. `base check` warns per excluded global-only definition (kind, id, adoption
+  path). A project pipeline referencing a global-only stage is a **validation error**, not a
+  warning, because the composition would commit foreign bytes. This narrows D-007's "sync compiles
+  global + overlay" to seed-and-adopt semantics — said here explicitly rather than left ambiguous.
+- **Commits us to:** render output being a pure function of the repo alone; the global canon
+  never silently changing any committed surface; adoption always being a visible copy in the
+  project's history.

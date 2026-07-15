@@ -45,7 +45,9 @@ Deliberately lean (D-010): it covers what the walking skeleton will exercise and
 ```
 
 Two layers, one direction of flow: **canon compiles down to harness surfaces; harnesses
-write state back to files.** The CLI sits only on the compile edge.
+write state back to files.** The CLI sits only on the compile edge. Only repo-resident
+definitions enter committed surfaces; the global layer seeds new projects and is adopted by
+copy (D-017/D-018), so generated output is a pure function of the repo alone.
 
 ## 3. Canon — the vendor-neutral definitions
 
