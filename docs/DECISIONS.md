@@ -226,3 +226,26 @@ to. Newest entries at the bottom.
 - **Commits us to:** render output being a pure function of the repo alone; the global canon
   never silently changing any committed surface; adoption always being a visible copy in the
   project's history.
+
+## D-019: skillsmith stays separate; skills arrive as harness-level plugins
+
+- **Status:** accepted (2026-07-15)
+- **Context:** Dakota also maintains skillsmith (github.com/smithdak/skillsmith), a Claude Code
+  skills monorepo — 14 skills in 4 installable plugins, with its own validate→generate→check
+  pipeline, trigger-hit-rate evals, and security rules. The question was whether to fold that
+  functionality into base and seed the system with those skills. Absorbing it would reverse
+  SPEC §9 (plugin/marketplace runtime is a non-goal), split the toolchain (Rust vs. Bun/TS,
+  against D-005), and pull a Claude Code-only artifact format into a vendor-neutral canon
+  (against D-003/D-009).
+- **Decision:** The repos stay separate with a defined division of labor. **base** is the
+  per-project operating system: pipelines, gates, rules, work, runs, knowledge. **skillsmith**
+  is the personal skill library and its distribution channel. Skillsmith capability reaches
+  projects via user-level plugin install (`/plugin marketplace add smithdak/skillsmith`) —
+  treated the way D-015 treats MCP servers: harness config outside canon, never committed
+  bytes. Routing rule for new additions: a project's way of working → base canon; a portable
+  personal technique → skillsmith. Know-how worth keeping is distilled into canon knowledge
+  per D-017 (authored rewrite, not a copy of plugin bytes); a skill that becomes part of a
+  standard gated delivery flow gets promoted the same way, as a base pipeline.
+- **Commits us to:** base never growing plugin/marketplace machinery; skill installs staying
+  user-scoped and out of committed surfaces; promotion into canon always being an authored
+  rewrite so no committed byte's sole source is the skillsmith repo.
