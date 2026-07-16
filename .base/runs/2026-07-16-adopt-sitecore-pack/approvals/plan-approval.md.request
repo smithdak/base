@@ -1,0 +1,17 @@
+# Approval requested: plan-approval
+
+Run: 2026-07-16-adopt-sitecore-pack (W-0009)
+
+Approve executing `plan.md` in this run folder: adopt the Sitecore pack into
+`D:\github\sitecoreai` — `base init`, port the hand-authored uncommitted CLAUDE.md into
+`.base/canon/rules/sitecoreai-repo.md`, delete CLAUDE.md so sync can own it, copy the four
+pack files, `base sync`, one commit on branch `chore/adopt-base-sitecoreai-pack`, no push.
+
+The notable calls to weigh:
+- The uncommitted 52-line CLAUDE.md is deleted after verbatim port to canon (content preserved,
+  file replaced by generated output).
+- sitecoreai becomes fully base-managed (gates, hooks, generated surfaces), not just
+  pack-augmented.
+
+Record the verdict from outside the session:
+`base approve 2026-07-16-adopt-sitecore-pack plan-approval` (or `--deny`).
