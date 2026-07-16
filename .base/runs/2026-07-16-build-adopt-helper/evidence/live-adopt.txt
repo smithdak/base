@@ -1,0 +1,34 @@
+== init
+initialized project base at C:\Users\dakot\AppData\Local\Temp\claude\D--github-base\49319104-4021-4e8a-b5ab-1d781cda13ab\scratchpad\adopt-e2e (15 created, 0 unchanged, 0 replaced)
+next: base check && base sync
+
+== adopt sitecore
+adopted pack `sitecore` (4 files copied into .base/canon)
+  .base/canon/knowledge/sitecore-content-modeling.md
+  .base/canon/knowledge/sitecore-governance-operability.md
+  .base/canon/knowledge/sitecore-platform-decisions.md
+  .base/canon/rules/sitecore-conventions.md
+next:
+  - add a routing line to .base/canon/knowledge/INDEX.md for each of: knowledge/sitecore-content-modeling.md, knowledge/sitecore-governance-operability.md, knowledge/sitecore-platform-decisions.md
+  - run `base sync`
+  - commit the copied canon and regenerated surfaces together
+  - see C:\Users\dakot\.base\canon\packs\sitecore\pack.md for pack-specific adoption notes
+
+== adopt sitecore (again, expect refusal)
+error: refusing to overwrite existing canon files: .base/canon/knowledge/sitecore-content-modeling.md, .base/canon/knowledge/sitecore-governance-operability.md, .base/canon/knowledge/sitecore-platform-decisions.md, .base/canon/rules/sitecore-conventions.md
+
+== sync + check
+synced 10 files (10 written, 0 unchanged, 0 removed)
+canon valid: 2 rules, 2 agents, 4 stages, 1 pipelines, 5 knowledge entries
+
+GATE                          KIND              TARGET    FIDELITY
+plan-approval                 stage-approval    claude    enforced
+plan-approval                 stage-approval    codex     assisted
+plan-approval                 stage-approval    copilot   advisory
+never-push-default-branch     standing-denial   claude    enforced
+never-push-default-branch     standing-denial   codex     assisted
+never-push-default-branch     standing-denial   copilot   advisory
+
+claude: standing denial uses a project permission deny plus PreToolUse hooks over Bash git pushes and GitHub MCP branch writes (PR merges stay the review path); stage approval is enforced through approval artifacts: a pending `*.request` denies mutating tools until `base approve` records the verdict
+codex: explicit default-branch refspecs are blocked by project rules; stage approval and unusual refspecs remain assisted
+copilot: gates are declared in prose and remain advisory

@@ -752,3 +752,105 @@ fn project_canon_overrides_global_canon_by_id() {
     assert!(instructions.contains("PROJECT WINS"));
     assert!(!instructions.contains("GLOBAL ONLY"));
 }
+
+fn write_test_pack(home: &Path) {
+    let pack = home.join("canon/packs/testpack");
+    fs::create_dir_all(pack.join("rules")).unwrap();
+    fs::create_dir_all(pack.join("knowledge")).unwrap();
+    fs::write(
+        pack.join("pack.md"),
+        "---\nid: testpack\ndescription: Test pack.\n---\n\nManifest.\n",
+    )
+    .unwrap();
+    fs::write(
+        pack.join("rules/testpack-rules.md"),
+        "---\nid: testpack-rules\ndescription: Test rules.\n---\n\n- Be excellent.\n",
+    )
+    .unwrap();
+    fs::write(
+        pack.join("knowledge/testpack-notes.md"),
+        "---\nid: testpack-notes\ndescription: Test notes.\n---\n\nNotes.\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn adopt_copies_pack_into_project_canon() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_test_pack(home.path());
+
+    let output = success(project.path(), home.path(), &["adopt", "testpack"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        project
+            .path()
+            .join(".base/canon/rules/testpack-rules.md")
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(".base/canon/knowledge/testpack-notes.md")
+            .is_file()
+    );
+    assert!(!project.path().join(".base/canon/pack.md").exists());
+    assert!(stdout.contains("INDEX.md"));
+    assert!(stdout.contains("knowledge/testpack-notes.md"));
+    assert!(stdout.contains("base sync"));
+    assert!(stdout.contains("commit the copied canon"));
+
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["check"]);
+}
+
+#[test]
+fn adopt_refuses_existing_files_without_partial_copy() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_test_pack(home.path());
+    success(project.path(), home.path(), &["adopt", "testpack"]);
+
+    fs::write(
+        home.path().join("canon/packs/testpack/rules/extra.md"),
+        "---\nid: extra\ndescription: Added later.\n---\n\n- More.\n",
+    )
+    .unwrap();
+
+    let failed = base(project.path(), home.path(), &["adopt", "testpack"]);
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("refusing to overwrite existing canon files"));
+    assert!(stderr.contains(".base/canon/rules/testpack-rules.md"));
+    assert!(!project.path().join(".base/canon/rules/extra.md").exists());
+}
+
+#[test]
+fn adopt_unknown_pack_lists_available() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_test_pack(home.path());
+
+    let failed = base(project.path(), home.path(), &["adopt", "nope"]);
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("no pack `nope`"));
+    assert!(stderr.contains("available packs: testpack"));
+}
+
+#[test]
+fn adopt_requires_initialized_project() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    fs::create_dir(project.path().join(".git")).unwrap();
+    write_test_pack(home.path());
+
+    let failed = base(project.path(), home.path(), &["adopt", "testpack"]);
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("base init"));
+}
