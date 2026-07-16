@@ -29,6 +29,6 @@ plus Next.js example) with active local work. Two blockers make target selection
 
 ## Acceptance Criteria
 
-- [ ] A real Sitecore repository adopts the pack per pack.md: rules and knowledge files copied into its .base/canon/, INDEX.md routing lines added, base sync run, copies and regenerated surfaces committed together
-- [ ] The adoption experience is recorded: friction observed (or absence of it) lands in the ledger or a run artifact, providing the evidence D-020 names as the trigger for a base adopt helper
-- [ ] Any pack-content gaps found during adoption flow back into the global library copy as authored edits, completing the knowledge loop
+- [x] A real Sitecore repository adopts the pack per pack.md: rules and knowledge files copied into its .base/canon/, INDEX.md routing lines added, base sync run, copies and regenerated surfaces committed together
+- [x] The adoption experience is recorded: friction observed (or absence of it) lands in the ledger or a run artifact, providing the evidence D-020 names as the trigger for a base adopt helper
+- [x] Any pack-content gaps found during adoption flow back into the global library copy as authored edits, completing the knowledge loop
