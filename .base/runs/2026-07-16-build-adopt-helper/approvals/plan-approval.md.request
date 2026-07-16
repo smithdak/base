@@ -1,0 +1,14 @@
+# Approval requested: plan-approval
+
+Run: 2026-07-16-build-adopt-helper (W-0010)
+
+Approve executing `plan.md` in this run folder: add `base adopt <pack>` — new clap subcommand
++ `src/commands/adopt.rs`, refuse-before-copy semantics, follow-up checklist output, `--json`
+report, four new CLI tests, live end-to-end against the real sitecore pack as evidence. No
+compiler changes; packs stay invisible to `sync`/`check` per D-020.
+
+Context recorded in task.md: W-0009 found the copy low-tedium on n=1; this build proceeds on
+Dakota's 2026-07-16 directive, superseding D-020's tedium trigger (W-0010 criterion 3 amended).
+
+Record the verdict from outside the session:
+`base approve 2026-07-16-build-adopt-helper plan-approval` (or `--deny`).

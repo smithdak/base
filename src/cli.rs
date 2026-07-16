@@ -79,6 +79,8 @@ pub enum Command {
     Sync(SyncArgs),
     /// Validate canon and report gate enforcement fidelity.
     Check,
+    /// Copy a global-library pack into the project canon.
+    Adopt(AdoptArgs),
     /// Manage project work items.
     Work(WorkArgs),
     /// Inspect run history or one run folder.
@@ -88,6 +90,12 @@ pub enum Command {
     /// Internal harness-hook entrypoint.
     #[command(name = "__hook", hide = true)]
     Hook(HookArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct AdoptArgs {
+    /// Pack ID (folder name under BASE_HOME/canon/packs/).
+    pub pack: String,
 }
 
 #[derive(Debug, Args)]

@@ -138,14 +138,16 @@ degrades to advisory is the failure mode; the matrix makes it visible.
 
 ## 7. The CLI
 
-Rust, single binary, six verbs in v1. Every verb supports `--json`; mutations touch only
-files base generated or owns (manifest-listed), never user files.
+Rust, single binary, seven verbs (six in v1; `adopt` added per D-020/W-0010). Every verb
+supports `--json`; mutations touch only files base generated or owns (manifest-listed),
+never user files.
 
 | Verb | Job |
 |---|---|
 | `base init` | scaffold `~/.base/` (global) or `.base/` (project — detected) |
 | `base sync [--check] [--force]` | compile canon → active targets; stamp manifest; `--check` = validate + drift-detect only (CI-safe) |
 | `base check` | validate canon (schema, references, stage existence) + print the enforcement matrix |
+| `base adopt <pack>` | copy a global-library pack into `.base/canon/`, refusing overwrites; prints the follow-ups it cannot do (D-020) |
 | `base work <list\|new\|show\|move\|board>` | kanban front-end over work-item folders |
 | `base log [<slug>]` | inspect `history.jsonl` / a run folder |
 | `base approve [--deny] [--by] [--note]` | record a stage-gate verdict as an immutable run artifact |

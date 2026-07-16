@@ -1,3 +1,4 @@
+mod adopt;
 mod approve;
 mod check;
 mod hook;
@@ -25,6 +26,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Init(args) => init::run(&start, args, cli.json),
         Command::Sync(args) => sync::run(&find_project_root(&start)?, args, cli.json),
         Command::Check => check::run(&find_project_root(&start)?, cli.json),
+        Command::Adopt(args) => adopt::run(&find_project_root(&start)?, args, cli.json),
         Command::Work(args) => work::run(&find_project_root(&start)?, args, cli.json),
         Command::Log(args) => log::run(&find_project_root(&start)?, args, cli.json),
         Command::Approve(args) => approve::run(&find_project_root(&start)?, args, cli.json),
