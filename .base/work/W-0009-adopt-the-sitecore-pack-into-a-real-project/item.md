@@ -1,7 +1,7 @@
 ---
 id: W-0009
 title: Adopt the Sitecore pack into a real project
-status: todo
+status: review
 verdict: pending
 created: 2026-07-16
 tags:

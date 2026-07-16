@@ -1,0 +1,44 @@
+0f3069d Adopt base and the Sitecore pack
+
+== post-commit status (unrelated work untouched, nothing pushed) ==
+ M examples/basic-nextjs/.sitecore/component-map.client.ts
+ M examples/basic-nextjs/.sitecore/component-map.ts
+ M examples/basic-nextjs/next-env.d.ts
+ M examples/basic-nextjs/tsconfig.json
+ M local-containers/.env
+ M local-containers/docker-compose.yml
+?? authoring/items/Arkfield/
+?? license.xml
+
+0f3069d Adopt base and the Sitecore pack
+ .agents/skills/build/SKILL.md                      |   42 +
+ .base/base.toml                                    |   30 +
+ .base/canon/agents/builder.md                      |   11 +
+ .base/canon/agents/reviewer.md                     |   11 +
+ .base/canon/knowledge/INDEX.md                     |   13 +
+ .base/canon/knowledge/adapter-surfaces.md          |    8 +
+ .base/canon/knowledge/sitecore-content-modeling.md |   36 +
+ .../knowledge/sitecore-governance-operability.md   |   29 +
+ .../canon/knowledge/sitecore-platform-decisions.md |   31 +
+ .base/canon/pipelines/build.md                     |   13 +
+ .base/canon/pipelines/stages/execute.md            |    8 +
+ .base/canon/pipelines/stages/intake.md             |    9 +
+ .base/canon/pipelines/stages/plan.md               |    7 +
+ .base/canon/pipelines/stages/record.md             |    8 +
+ .base/canon/rules/sitecore-conventions.md          |   17 +
+ .base/canon/rules/sitecoreai-repo.md               |   55 +
+ .base/canon/rules/working-agreements.md            |    9 +
+ .base/history.jsonl                                |    0
+ .base/knowledge/.gitkeep                           |    0
+ .base/runs/.gitkeep                                |    0
+ .base/work/.gitkeep                                |    0
+ .claude/agents/builder.md                          |   11 +
+ .claude/agents/reviewer.md                         |   11 +
+ .claude/settings.json                              |   64 +
+ .claude/skills/build/SKILL.md                      |   44 +
+ .codex/rules/base.rules                            |   15 +
+ .github/copilot-instructions.md                    |  108 ++
+ .github/prompts/build.prompt.md                    |   42 +
+ AGENTS.md                                          |  108 ++
+ CLAUDE.md                                          | 1357 +-------------------
+ 30 files changed, 810 insertions(+), 1287 deletions(-)
