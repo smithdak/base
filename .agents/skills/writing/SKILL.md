@@ -12,7 +12,7 @@ announcement — rather than code. The outline is the plan: it carries the appro
 draft must not silently outgrow it.
 
 Use the task supplied alongside this explicitly invoked skill.
-Record `harness` as `codex` in the run ledger.
+Record the actual runtime, `codex` or `copilot`, as `harness` in the run ledger.
 
 ## 1. Intake
 

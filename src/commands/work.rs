@@ -1,4 +1,6 @@
-use std::fs;
+use std::collections::BTreeMap;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -12,6 +14,7 @@ use crate::cli::{WorkArgs, WorkCommand, WorkStatus, WorkVerdict};
 use super::print_json;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct WorkMeta {
     id: String,
     title: String,
@@ -28,6 +31,7 @@ struct WorkItem {
     #[serde(flatten)]
     meta: WorkMeta,
     path: String,
+    reservation_path: Option<String>,
     body: String,
     files: Vec<String>,
 }
@@ -55,6 +59,38 @@ pub fn run(project_root: &Path, args: WorkArgs, json: bool) -> Result<()> {
             verdict,
         } => move_item(project_root, &id, status, verdict, json),
         WorkCommand::Board => board(project_root, json),
+    }
+}
+
+pub(crate) fn validate(project_root: &Path) -> Result<()> {
+    load_items(project_root).map(|_| ())
+}
+
+pub(crate) fn validate_work_id(id: &str) -> Result<()> {
+    let valid = id.len() == 6
+        && id.starts_with("W-")
+        && id[2..].bytes().all(|byte| byte.is_ascii_digit())
+        && id != "W-0000";
+    if !valid {
+        bail!("invalid work item id `{id}`; expected W-0001 through W-9999");
+    }
+    Ok(())
+}
+
+fn validate_work_state(meta: &WorkMeta) -> Result<()> {
+    match (meta.status, meta.verdict) {
+        (WorkStatus::Done, WorkVerdict::Pass | WorkVerdict::Fail)
+        | (WorkStatus::Todo | WorkStatus::Doing | WorkStatus::Review, WorkVerdict::Pending) => {
+            Ok(())
+        }
+        (WorkStatus::Done, WorkVerdict::Pending) => bail!(
+            "work item `{}` with status done requires verdict pass|fail",
+            meta.id
+        ),
+        (status, WorkVerdict::Pass | WorkVerdict::Fail) => bail!(
+            "work item `{}` with status {status} must have verdict pending; pass|fail only applies to done",
+            meta.id
+        ),
     }
 }
 
@@ -97,17 +133,16 @@ fn new(
 
     let items = load_items(project_root)?;
     let work_directory = project_root.join(".base/work");
-    let next = next_work_number(&items, &work_directory)?;
-    let id = format!("W-{next:04}");
     let slug = slugify(title);
-    let folder_name = if slug.is_empty() {
-        id.clone()
-    } else {
-        format!("{id}-{slug}")
-    };
-    let folder = work_directory.join(folder_name);
-    fs::create_dir_all(&folder)
-        .with_context(|| format!("cannot create work-item folder {}", folder.display()))?;
+    fs::create_dir_all(&work_directory)
+        .with_context(|| format!("cannot create {}", work_directory.display()))?;
+    let (id, folder_name, reservation) = reserve_work_id(&items, &work_directory, &slug)?;
+    let folder = work_directory.join(&folder_name);
+    if let Err(error) = fs::create_dir(&folder) {
+        let _ = fs::remove_file(&reservation);
+        return Err(error)
+            .with_context(|| format!("cannot create work-item folder {}", folder.display()));
+    }
     let path = folder.join("item.md");
 
     let criteria: Vec<String> = criteria
@@ -138,10 +173,15 @@ fn new(
                 .collect(),
         },
         path: relative(project_root, &path),
+        reservation_path: Some(relative(project_root, &reservation)),
         body,
         files: Vec::new(),
     };
-    write_item(project_root, &item)?;
+    if let Err(error) = write_item(project_root, &item) {
+        let _ = fs::remove_dir(&folder);
+        let _ = fs::remove_file(&reservation);
+        return Err(error);
+    }
 
     if json {
         print_json(&item)
@@ -314,8 +354,12 @@ fn load_items(project_root: &Path) -> Result<Vec<WorkItem>> {
     paths.sort();
 
     let mut items = Vec::new();
+    let mut ids = BTreeMap::<String, String>::new();
     for path in paths {
         if path.is_dir() {
+            if path.file_name().and_then(|name| name.to_str()) == Some(".ids") {
+                continue;
+            }
             let item_path = path.join("item.md");
             if !item_path.is_file() {
                 eprintln!(
@@ -330,6 +374,28 @@ fn load_items(project_root: &Path) -> Result<Vec<WorkItem>> {
                 .with_context(|| format!("invalid work item {}", item_path.display()))?;
             let meta: WorkMeta = serde_yaml::from_str(frontmatter)
                 .with_context(|| format!("invalid work metadata {}", item_path.display()))?;
+            validate_work_id(&meta.id)?;
+            validate_work_state(&meta)?;
+            let folder_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .context("work-item folder name is not valid UTF-8")?;
+            if folder_name != meta.id && !folder_name.starts_with(&format!("{}-", meta.id)) {
+                bail!(
+                    "work-item folder `{folder_name}` does not match metadata ID `{}`",
+                    meta.id
+                );
+            }
+            let normalized_id = meta.id.to_ascii_lowercase();
+            let item_relative = relative(project_root, &item_path);
+            if let Some(existing) = ids.insert(normalized_id, item_relative.clone()) {
+                bail!(
+                    "duplicate work-item ID `{}` in {} and {}",
+                    meta.id,
+                    existing,
+                    item_relative
+                );
+            }
             let mut files = Vec::new();
             for entry in WalkDir::new(&path).min_depth(1) {
                 let entry = entry
@@ -340,6 +406,7 @@ fn load_items(project_root: &Path) -> Result<Vec<WorkItem>> {
             }
             files.sort();
             items.push(WorkItem {
+                reservation_path: work_reservation(project_root, &directory, &meta, &path)?,
                 meta,
                 path: relative(project_root, &item_path),
                 body: body.to_owned(),
@@ -356,6 +423,32 @@ fn load_items(project_root: &Path) -> Result<Vec<WorkItem>> {
     }
     items.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(items)
+}
+
+fn work_reservation(
+    project_root: &Path,
+    work_directory: &Path,
+    meta: &WorkMeta,
+    item_directory: &Path,
+) -> Result<Option<String>> {
+    let reservation = work_directory.join(".ids").join(&meta.id);
+    if !reservation.is_file() {
+        return Ok(None);
+    }
+    let expected = item_directory
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("work-item folder name is not valid UTF-8")?;
+    let recorded = fs::read_to_string(&reservation)
+        .with_context(|| format!("cannot read {}", reservation.display()))?;
+    if recorded.trim() != expected {
+        bail!(
+            "work-item reservation {} points to `{}`, expected `{expected}`",
+            relative(project_root, &reservation),
+            recorded.trim()
+        );
+    }
+    Ok(Some(relative(project_root, &reservation)))
 }
 
 fn find_item<'a>(items: &'a [WorkItem], id: &str) -> Result<&'a WorkItem> {
@@ -424,10 +517,76 @@ fn next_work_number(items: &[WorkItem], work_directory: &Path) -> Result<u32> {
                 maximum = maximum.max(number);
             }
         }
+        let reservations = work_directory.join(".ids");
+        if reservations.is_dir() {
+            for entry in fs::read_dir(reservations)? {
+                let entry = entry?;
+                if let Some(number) = entry.file_name().to_str().and_then(work_number) {
+                    maximum = maximum.max(number);
+                }
+            }
+        }
     }
-    maximum
+    let next = maximum
         .checked_add(1)
-        .context("work-item ID space exhausted")
+        .context("work-item ID space exhausted")?;
+    if next > 9999 {
+        bail!("work-item ID space exhausted at W-9999");
+    }
+    Ok(next)
+}
+
+fn reserve_work_id(
+    items: &[WorkItem],
+    work_directory: &Path,
+    slug: &str,
+) -> Result<(String, String, PathBuf)> {
+    let reservations = work_directory.join(".ids");
+    fs::create_dir_all(&reservations)
+        .with_context(|| format!("cannot create {}", reservations.display()))?;
+    let mut number = next_work_number(items, work_directory)?;
+    loop {
+        let id = format!("W-{number:04}");
+        let folder_name = if slug.is_empty() {
+            id.clone()
+        } else {
+            format!("{id}-{slug}")
+        };
+        let reservation = reservations.join(&id);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&reservation)
+        {
+            Ok(mut file) => {
+                if let Err(error) = writeln!(file, "{folder_name}") {
+                    drop(file);
+                    let _ = fs::remove_file(&reservation);
+                    return Err(error)
+                        .with_context(|| format!("cannot write {}", reservation.display()));
+                }
+                if let Err(error) = file.sync_all() {
+                    drop(file);
+                    let _ = fs::remove_file(&reservation);
+                    return Err(error)
+                        .with_context(|| format!("cannot sync {}", reservation.display()));
+                }
+                return Ok((id, folder_name, reservation));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                number = number
+                    .checked_add(1)
+                    .context("work-item ID space exhausted")?;
+                if number > 9999 {
+                    bail!("work-item ID space exhausted at W-9999");
+                }
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("cannot reserve {}", reservation.display()));
+            }
+        }
+    }
 }
 
 fn work_number(value: &str) -> Option<u32> {
@@ -490,6 +649,14 @@ mod tests {
     #[test]
     fn titles_become_safe_slugs() {
         assert_eq!(slugify("Fix: Auth / Retry"), "fix-auth-retry");
+    }
+
+    #[test]
+    fn work_ids_stay_inside_the_four_digit_contract() {
+        assert!(validate_work_id("W-0001").is_ok());
+        for invalid in ["W-0000", "W-10000", "w-0001", "W-001A"] {
+            assert!(validate_work_id(invalid).is_err(), "{invalid}");
+        }
     }
 
     #[test]

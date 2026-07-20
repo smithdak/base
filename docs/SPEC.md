@@ -1,188 +1,180 @@
-# base — Lean Architecture Spec
+# Base operating-model core — architecture spec
 
-**One sentence:** define your agentic system once — agents, pipelines, rules, knowledge —
-and run it from any coding-agent harness (Claude Code, Codex, Copilot), with all state as
-plain files in git.
+**One sentence:** define a repository operating model once—rules, agents, skills, pipelines,
+policies, verifiers, knowledge, and state—and compile it to Claude Code, Codex, and GitHub Copilot
+without making Base an agent orchestrator.
 
-Founding decisions live in `DECISIONS.md`; this spec doesn't restate their rationale.
-Deliberately lean (D-010): it covers what the walking skeleton will exercise and stops.
-
----
+Founding and amending decisions live in `DECISIONS.md`; this document specifies the shipped v0.2
+contract.
 
 ## 1. Principles
 
-1. **Files are the substrate.** All state is plain files in git — diffable, agent-legible,
-   zero infrastructure, identical from every harness (D-004).
-2. **Define once, run anywhere.** The canon is vendor-neutral; adapters compile it to each
-   harness's native surfaces. Compiled output is never hand-edited (D-003).
-3. **The harness is the engine.** base compiles, validates, and records; agents execute
-   inside their harness. The CLI never runs the loop (D-006).
-4. **Human in charge, honestly.** Gates are declared once and enforced by each harness's
-   strongest native mechanism; where a harness can't enforce, the gap is *declared*, never
-   hidden (§6).
-5. **Lean core.** Domain-neutral concepts only — work, pipelines, runs, gates, knowledge.
-   Nothing enters the core until real use demands it (D-002).
+1. **Git is the substrate.** Definitions, adopted packs, work, runs, evidence, and handoffs are
+   plain files: diffable, cloneable, and harness-legible.
+2. **One canon, native adapters.** Target output is compiled, never independently authored. Native
+   target asymmetries are reported rather than hidden behind a least-common-denominator claim.
+3. **Base owns lifecycle, not inference.** The CLI composes, validates, renders, gates, verifies,
+   and records. Claude Code, Codex, or Copilot owns the model loop.
+4. **Evidence has types.** `fail` and `inconclusive` are distinct non-passing outcomes. A local pass
+   cannot prove unavailable infrastructure or an external release gate.
+5. **Reusable core, explicit project edge.** Versioned packs hold shared operating models;
+   `.base/canon/` holds project-specific overrides and executable verification contracts.
 
-## 2. The model
+## 2. Composition and flow
 
-```
-            ~/.base/canon/               <repo>/.base/canon/
-            (global definitions)   +     (project overlay — wins on conflict)
-                          │
-                          │  base sync   (Rust CLI — compile + stamp manifest)
-                          ▼
-   ┌─────────────────────────┬──────────────────────────┬─────────────────────────┐
-   │ Claude Code             │ Codex                    │ Copilot                 │
-   │ CLAUDE.md               │ AGENTS.md                │ .github/                │
-   │ .claude/skills/         │ .agents/skills/          │   copilot-instructions  │
-   │ .claude/agents/         │ .codex/rules/            │   prompts/*.prompt.md   │
-   │ .claude/settings (hooks)│                          │                         │
-   └─────────────────────────┴──────────────────────────┴─────────────────────────┘
-                          │
-                          ▼  you work inside any harness
-            <repo>/.base/{work/  runs/  knowledge/  history.jsonl}
-                          (state — written back as plain files)
+```text
+$BASE_HOME/canon/          .base/packs/<id>/          .base/canon/
+personal seed library  ->  ordered vendored packs  -> project overlay (wins)
+                                     |
+                                     | base check / base sync
+                                     v
+              Claude Code          Codex             Copilot
+              CLAUDE.md             AGENTS.md         .github/*
+              .claude/*             .codex/*          .agents/skills/*
+                                     |
+                                     v
+              .base/{state,work,runs,evidence,history,knowledge}
 ```
 
-Two layers, one direction of flow: **canon compiles down to harness surfaces; harnesses
-write state back to files.** The CLI sits only on the compile edge. Only repo-resident
-definitions enter committed surfaces; the global layer seeds new projects and is adopted by
-copy (D-017/D-018), so generated output is a pure function of the repo alone.
+Global-only definitions are library inputs, not reproducible project inputs, and never render.
+Adopted packs are immutable repository inputs recorded by semantic version and SHA-256. Packs load
+in config order; later IDs win. The project overlay wins last.
 
-## 3. Canon — the vendor-neutral definitions
+The v0.2 contract requires `.base/base.toml` schema `version = 2`. Older v0.1 binaries reject it
+before mutation instead of silently dropping `requires-base`, pack records, or generated surfaces.
 
-Everything definitional is Markdown with YAML frontmatter (prose the agent reads) or TOML
-(structure the CLI reads). Kinds, v1:
+## 3. Canon
 
-| Kind | Where | What it is |
-|---|---|---|
-| **rules** | `canon/rules/*.md` | always-on constraints and context — compiled into every harness's instruction file |
-| **agents** | `canon/agents/*.md` | role definitions: intent, scope, tool posture |
-| **pipelines** | `canon/pipelines/*.md` | a staged, gated unit of work — frontmatter declares the stage sequence + parameters; stage bodies are authored prose |
-| **stages** | `canon/pipelines/stages/*.md` | reusable stage modules pipelines compose |
-| **knowledge** | `canon/knowledge/*.md` | on-demand know-how with an `INDEX.md` router |
-| **gates** | declared in pipeline frontmatter + `base.toml` | human checkpoints and hard denials (§6) |
-| **config** | `base.toml` | manifest: active targets, merge info, generated-file hashes |
+Canon kinds are rules, agents, skills, pipeline stages, pipelines, lifecycle policies, verifier
+suites, and knowledge. Markdown bodies carry authored reasoning; YAML frontmatter carries bounded
+structure. Base interprets references and direct commands but does not implement pipeline branching
+or a workflow language.
 
-A pipeline is **declared as data, compiled to prose** (D-008): the frontmatter names
-ordered stages and parameters; `sync` composes the human-authored stage modules into one
-prompt per target. Stage parameters are caps, flags, on/off — **the moment a declaration
-wants branching or expressions, that logic moves into a stage module's prose.** Prompts
-express conditionals natively; interpreted declarations are how you accidentally build an
-engine.
+Skills retain their full directory tree. Agents reference skills and declare an access posture.
+Pipeline stages may reference a stage-approval gate, verifier suite, assigned agent, and an
+independent-review requirement. Every pipeline ends with `record`, preserving one ledger entry for
+completed, aborted, and failed exits.
 
-```yaml
-# canon/pipelines/build.md (frontmatter)
-id: build
-stages:
-  - use: intake            # task → runs/<date>-<slug>/task.md
-  - use: plan
-    gate: plan-approval
-  - use: execute
-  - use: record            # always last: history.jsonl line — every exit path
-```
+Policies have four lifecycle events (`session-start`, `pre-tool-use`, `post-tool-use`,
+`session-end`) and three modes (`context`, `guard`, `observe`). Verifiers are sequential direct-argv
+checks with bounded timeouts and `pass | fail | inconclusive` outcomes. Exact schemas are in
+`CANON.md`.
 
-## 4. Adapters — compilation targets
+## 4. Adapters
 
-One adapter per harness, each a pure function: `(global canon + project overlay) →
-files on disk`. Every generated file carries a `<!-- generated by base sync — DO NOT
-EDIT -->` header and its hash is stamped into `base.toml`; `sync --check` fails on drift,
-and `sync` refuses to overwrite a hand-modified generated file without `--force`.
+Adapters are pure functions of repository-resident canon plus config. `sync` computes all outputs,
+compares them with the prior manifest, refuses hand-edited collisions unless `--force`, removes
+obsolete generated files, writes the new set, and stamps hashes in `.base/base.toml`. Owned output
+paths must be normal repository-relative components; symlink/reparse-point traversal is refused.
 
-| Canon kind | Claude Code | Codex | Copilot |
-|---|---|---|---|
-| rules | `CLAUDE.md` | `AGENTS.md` | `.github/copilot-instructions.md` |
-| pipelines | `.claude/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` | `.github/prompts/*.prompt.md` |
-| agents | `.claude/agents/*.md` (subagents) | section in `AGENTS.md` *(advisory)* | section in instructions *(advisory)* |
-| gates | hooks + permission rules in `.claude/settings.json` *(enforced)* | approval/sandbox config + prose *(assisted)* | prose *(advisory)* |
-| knowledge | pointer index in `CLAUDE.md` (skills later) | pointer index in `AGENTS.md` | pointer index |
+An allowlisted `.base/native/` mirror composes existing target-specific instruction and JSON
+configuration into `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`,
+`.claude/settings.json`, `.codex/hooks.json`, and `.github/hooks/base.json`. Markdown is appended;
+JSON is recursively merged with native arrays before Base arrays and Base winning scalar/type
+conflicts. The committed overlay is input; the target file remains manifest-owned output.
 
-Fidelity is per-cell, not per-harness, and it is **reported, not assumed** (§6). The
-adapter contract: an adapter may degrade a feature but must record the degradation.
+Non-hook CLI commands take a shared or exclusive advisory file lock at `.base/.lock`; config,
+pack, generated-surface, work, approval, and state mutations are exclusive. Reads/verifiers are
+shared. Acquisition is bounded at 30 seconds, and `.base/.gitignore` excludes the lock file.
+Global bundled-pack refresh uses `$BASE_HOME/.lock`; adoption holds the project lock and a shared
+global-library lock. This prevents same-working-copy Base processes from losing config updates.
 
-## 5. State — work, runs, history, knowledge
+Claude Code, Codex, and Copilot receive native custom agents. Claude gets project skills under
+`.claude/skills`; Codex and Copilot share open Agent Skills under `.agents/skills`. All three receive
+native lifecycle hooks for equivalent events. Codex `session-end` remains assisted, and Codex
+project hooks require explicit trust. Copilot pipelines have separate CLI/cloud Agent Skill and VS
+Code prompt-file profiles. The current matrix and verified-as-of references are in `ADAPTERS.md`.
 
-All under `<repo>/.base/`, committed with the project.
+## 5. State and evidence
 
-- **`work/`** — one folder per work item (`W-0001-slug/`) with canonical `item.md`,
-  attachments alongside it, YAML frontmatter (`id`, `title`, `status`, `verdict`, `created`,
-  `tags`), and a required `## Acceptance Criteria` section. Status is one of
-  `todo | doing | review | done`; verdict is `pending | pass | fail`, with an explicit human
-  `pass` or `fail` required for `done`. IDs are sequential per project (`W-0001`). Cross-branch ID collision
-  is accepted for a single user in v1 — recorded, not solved.
-- **`runs/<date>-<slug>/`** — one folder per pipeline run; stages write their artifacts
-  here (`task.md`, `plan.md`, outputs). Durable, resumable, auditable. The folder schema is
-  owned by stages, with one reservation: the `evidence/` subfolder name is reserved so
-  verification can attach proof later without a schema change (D-008).
-- **`history.jsonl`** — append-only ledger, one JSON line per run: `slug`, `date`,
-  `pipeline`, `harness`, `outcome`, `paths`. Every pipeline's `record` stage writes it —
-  including aborts.
-- **`knowledge/`** — project-tier lessons. Promotion path: run artifact → project
-  `knowledge/` → global `canon/knowledge/` (a file move; CLI helper later). The global canon is
-  the personal library: it seeds new projects, and an existing project adopts a lesson by copying
-  it into its own `.base/canon/knowledge/`. Committed surfaces render repo-resident knowledge
-  only (D-014/D-017); `base check` reports global-only entries awaiting adoption.
+- `work/W-NNNN-slug/item.md` (`W-0001` through `W-9999`): fixed
+  `todo | doing | review | done` workflow. `done` requires a
+  human `pass | fail` verdict; checked criteria are evidence, not an inferred verdict. New items
+  atomically create `work/.ids/W-NNNN`; committing that reservation forces a Git integration
+  conflict for independently allocated duplicate IDs. Duplicate metadata IDs and reservation
+  mismatches fail `base check`.
+- `state/current-work`: pointer to an existing work item. `state/handoff.md`: optional UTF-8 handoff
+  with `work-item: W-NNNN` and `run: <slug>` frontmatter matching that pointer and an existing run,
+  `# Handoff`, and a non-empty `## Next action`. Switching work rejects a stale handoff; clearing
+  state removes both files.
+- `runs/<slug>/`: one auditable attempt. `evidence/verifications/*.json`: verifier reports with
+  stream hashes/counts by default and raw output only after per-check opt-in.
+- `history.jsonl`: append-only one-line run summaries.
+- `knowledge/`: project lessons; canon knowledge supplies durable operating guidance.
 
-## 6. Gates
+## 6. Gates and failure posture
 
-A gate is a named checkpoint declared in canon: either **stage gates** (pipeline pauses for
-explicit approval — e.g. `plan-approval`) or **standing denials** (never push to the
-default branch, never destructive ops unconfirmed).
+Stage approval uses an operator-intended verdict artifact written with `base approve`. The command
+requires the exact request, validates one-line fields, and uses create-new reservation so concurrent
+deciders get one CLI-level winner. Hooks deny ordinary agent writes to configured response paths
+and deny covered mutation while a request lacks a response. Approval resumes mechanically; denial
+is terminal for that plan, but routing it to `record aborted` remains behavioral, so fidelity is
+`hybrid-hook`. The scanner accepts a well-formed artifact; `by` is self-asserted, and an unrestricted
+same-account process can bypass hooks or forge/change bytes. This is a trusted-working-copy
+workflow control, not authenticated human identity, cryptographic authorization, or filesystem
+immutability.
 
-Each adapter binds every gate to the strongest mechanism its harness has — Claude Code gets
-hooks and permission deny-rules; Codex gets approval-mode/sandbox config plus prompt
-directives; Copilot gets prompt directives. `base check` prints the **enforcement matrix**
-— every gate × every active target → `enforced | assisted | advisory` — so the honest
-answer to "what actually stops the agent here?" is one command away. A gate that silently
-degrades to advisory is the failure mode; the matrix makes it visible.
+The built-in standing denial guards common direct default-branch writes through native pre-tool
+hooks, with Codex rules as defense in depth. It recognizes ordinary/forced refspecs, `HEAD`/`@` on
+the default branch, and GitHub MCP branch writes—including Copilot's sanitized
+`github-mcp-server-*` tool namespace. Aliases, wrappers, hook disablement, and other host escape
+paths remain possible; authoritative protection belongs at the Git server.
+
+Canonical guard policies may opt into fail-closed behavior. Generated Codex/Copilot wrappers probe
+Base hook protocol 1: built-in and fail-closed guards emit a native deny when Base is absent or
+incompatible, while context/observe/fail-open policies skip. This makes compatible Base bootstrap a
+mandatory prerequisite for mutation in those profiles. `base check` reports the runtime, profile,
+scope, and trust prerequisites it can inspect; product-level timeouts can still be fail-open.
+Policy commands and verifiers run in process groups/Windows Job Objects; timeouts and leader
+completion terminate descendants while pipe handling stays deadline-bounded.
 
 ## 7. The CLI
 
-Rust, single binary, seven verbs (six in v1; `adopt` added per D-020/W-0010). Every verb
-supports `--json`; mutations touch only files base generated or owns (manifest-listed),
-never user files.
+Rust, single binary, nine verbs. Every verb supports `--json`; mutations touch Base-owned files,
+managed pack bytes, or manifest-listed generated output.
 
 | Verb | Job |
 |---|---|
-| `base init` | scaffold `~/.base/` (global) or `.base/` (project — detected) |
-| `base sync [--check] [--force]` | compile canon → active targets; stamp manifest; `--check` = validate + drift-detect only (CI-safe) |
-| `base check` | validate canon (schema, references, stage existence) + print the enforcement matrix |
-| `base adopt <pack>` | copy a global-library pack into `.base/canon/`, refusing overwrites; prints the follow-ups it cannot do (D-020) |
-| `base work <list\|new\|show\|move\|board>` | kanban front-end over work-item folders |
-| `base log [<slug>]` | inspect `history.jsonl` / a run folder |
-| `base approve [--deny] [--by] [--note]` | record a stage-gate verdict as an immutable run artifact |
+| `base init [--global] [--project] [--packs-only] [--force]` | scaffold the global library/project, or refresh only bundled packs |
+| `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
+| `base check` | validate composition and report gate plus definition-surface fidelity |
+| `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |
+| `base work <list\|new\|show\|move\|board>` | manage folder-backed work items and the kanban board |
+| `base log [<slug>]` | inspect run history or one run folder |
+| `base approve [--deny] [--by] [--note]` | write a create-new operator stage-gate verdict |
+| `base verify <suite> [--run]` | execute typed verifier checks and optionally retain evidence |
+| `base state <show\|set\|clear\|context>` | manage current work and emit portable session context |
 
-This table describes current behavior, so it is tethered (D-016): `tests/spec.rs` compares
-it against the real clap definition and fails `cargo test` when they disagree in either
-direction.
+`tests/spec.rs` tethers the visible verb set, documented flags, nested verb alternations, global
+`--json` promise, and prose count to the clap definition.
 
-## 8. v1 definition of done
+## 8. v0.2 definition of done
 
-1. `base init` scaffolds global and project layouts.
-2. A canon with rules, ≥2 agents, and one dev pipeline (`build`: intake → plan ⛩ →
-   execute → record) exists and is in daily use by its one user.
-3. `base sync` produces working surfaces for **all three harnesses** in one real project;
-   the same pipeline is invocable from each.
-4. Hand-editing a generated file is caught by `sync --check`.
-5. Gates: enforced via hooks on Claude Code; the enforcement matrix is truthful for all
-   three targets.
-6. `work/`, `runs/`, and `history.jsonl` are written by real runs, including abort paths.
-7. One lesson has completed the knowledge loop: captured in a run, promoted to global
-   canon, adopted by copy into another project, and visible there after `sync`.
+1. A bundled versioned `software-delivery` pack can be adopted, drift-checked, and safely upgraded.
+2. Rules, agents, skills plus resources, pipelines, policies, verifiers, and knowledge compose with
+   deterministic pack/project precedence.
+3. All three targets receive current native agent, skill, pipeline, and equivalent lifecycle-hook
+   surfaces; product profile, scope, trust/runtime prerequisites, and degradation are explicit.
+4. Current work and a validated work/run handoff can restore context in a new human or agent session.
+5. Verifier evidence retains direct commands and typed outcomes; absence of execution never passes.
+6. Generated UTF-8 drift is invariant to Git CRLF checkout conversion; non-UTF-8 resources remain
+   byte-exact.
+7. Generated drift, source formatting, lint, tests, and the spec tether pass in Base itself.
 
-## 9. Non-goals (v1)
+## 9. Non-goals
 
-Orchestrator-of-harnesses (headless dispatch/routing) · team features (shared parts,
-connectors, onboarding) · external trackers (ADO/Jira/GitHub Issues) · policy engine ·
-telemetry aggregation · databases or services · a plugin/marketplace runtime.
+Model routing or headless agent dispatch · hosted coordination · accounts/auth · centralized policy
+service · external tracker synchronization · secrets distribution · telemetry aggregation ·
+marketplace/registry protocol · interpreting arbitrary workflow expressions.
 
-## 10. Open questions
+## 10. Residual decisions
 
-1. **Evidence-gated verification** — deferred, not rejected (D-008). Confirm the deferral;
-   the `runs/*/evidence/` reservation keeps the door open.
-2. **Pipeline frontmatter schema** — settle exact fields in the walking skeleton, not here.
-3. **Copilot surface set** — the walking skeleton targets repository instructions plus IDE prompt
-   files; prompt availability outside supported IDEs remains a declared fidelity limitation.
-4. **Knowledge promotion mechanics** — manual file move vs. a `base learn` verb.
-5. **Harness version tracking** — all three targets change fast; decide how adapters pin
-   or track (a per-adapter "tested against" note at minimum).
+1. Pack publication remains a filesystem/git distribution concern; a signed remote registry needs a
+   demonstrated team bottleneck and separate threat model.
+2. Remote harness-image bootstrap is outside Base v0.2. Teams must install a `requires-base`-
+   compatible binary in any Claude, Codex, or Copilot environment expected to execute hooks.
+3. Adapter surfaces are volatile. Each mapping carries an as-of date and must be re-verified before
+   a target contract changes.
+4. The shipped proof is local Windows. Path validation rejects known Windows-incompatible names and
+   case-colliding pack/skill-resource paths, but Windows+Linux CI remains required before claiming
+   full cross-platform runtime proof.

@@ -7,6 +7,7 @@ use serde::Serialize;
 use crate::base_home;
 use crate::cli::InitArgs;
 use crate::find_project_root;
+use crate::lock::{LockMode, RepositoryLock};
 use crate::templates;
 
 use super::print_json;
@@ -21,19 +22,26 @@ struct InitReport {
 }
 
 pub fn run(start: &Path, args: InitArgs, json: bool) -> Result<()> {
-    let (scope, root, files) = if args.global {
-        ("global", base_home()?, templates::canon_files(""))
+    let (scope, root, files) = if args.packs_only {
+        ("global-packs", base_home()?, templates::global_pack_files())
+    } else if args.global {
+        ("global", base_home()?, templates::global_files())
     } else if args.project {
         ("project", start.to_path_buf(), templates::project_files())
     } else {
         match find_project_root(start) {
             Ok(root) => ("project", root, templates::project_files()),
-            Err(_) => ("global", base_home()?, templates::canon_files("")),
+            Err(_) => ("global", base_home()?, templates::global_files()),
         }
     };
 
     fs::create_dir_all(&root)
         .with_context(|| format!("cannot create scaffold root {}", root.display()))?;
+    let _lock = if scope == "project" {
+        RepositoryLock::project(&root, LockMode::Exclusive)?
+    } else {
+        RepositoryLock::global(&root, LockMode::Exclusive)?
+    };
     let mut report = InitReport {
         scope,
         root: root.display().to_string(),

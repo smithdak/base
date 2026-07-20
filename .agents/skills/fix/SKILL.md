@@ -12,7 +12,7 @@ bounds the plan: do not plan past what the reproduction demonstrates, and do not
 beyond the diagnosed cause.
 
 Use the task supplied alongside this explicitly invoked skill.
-Record `harness` as `codex` in the run ledger.
+Record the actual runtime, `codex` or `copilot`, as `harness` in the run ledger.
 
 ## 1. Intake
 

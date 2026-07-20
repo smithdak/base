@@ -87,6 +87,10 @@ pub enum Command {
     Log(LogArgs),
     /// Record a stage-gate approval or denial as a run artifact.
     Approve(ApproveArgs),
+    /// Execute a canonical verifier suite and optionally retain its evidence.
+    Verify(VerifyArgs),
+    /// Manage portable cross-session project state.
+    State(StateArgs),
     /// Internal harness-hook entrypoint.
     #[command(name = "__hook", hide = true)]
     Hook(HookArgs),
@@ -96,6 +100,10 @@ pub enum Command {
 pub struct AdoptArgs {
     /// Pack ID (folder name under BASE_HOME/canon/packs/).
     pub pack: String,
+
+    /// Replace an adopted pack with a strictly newer, immutable library version.
+    #[arg(long)]
+    pub upgrade: bool,
 }
 
 #[derive(Debug, Args)]
@@ -120,14 +128,45 @@ pub struct ApproveArgs {
 }
 
 #[derive(Debug, Args)]
-#[group(required = false, multiple = false)]
+pub struct VerifyArgs {
+    /// Verifier suite ID from canonical verifiers.
+    pub suite: String,
+
+    /// Record the report under this existing run folder.
+    #[arg(long, value_name = "RUN")]
+    pub run: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct StateArgs {
+    #[command(subcommand)]
+    pub command: StateCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StateCommand {
+    /// Show current work and the durable handoff.
+    Show,
+    /// Point current-work at an existing work item.
+    Set { id: String },
+    /// Clear the current-work pointer without deleting the work item.
+    Clear,
+    /// Emit concise context suitable for a session-start hook.
+    Context,
+}
+
+#[derive(Debug, Args)]
 pub struct InitArgs {
     /// Initialize the user-wide canon at BASE_HOME (normally ~/.base).
-    #[arg(long, group = "scope")]
+    #[arg(long, conflicts_with = "project")]
     pub global: bool,
 
+    /// Install or refresh only bundled global library packs, preserving personal canon.
+    #[arg(long, requires = "global")]
+    pub packs_only: bool,
+
     /// Initialize a project in the selected directory even outside git.
-    #[arg(long, group = "scope")]
+    #[arg(long, conflicts_with = "global")]
     pub project: bool,
 
     /// Replace base-owned scaffold files that already exist.
@@ -201,6 +240,32 @@ pub struct HookArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum HookCommand {
+    #[command(name = "capabilities")]
+    Capabilities {
+        /// Require this executable's package version to satisfy a semantic-version range.
+        #[arg(long, value_name = "RANGE")]
+        require: Option<String>,
+
+        /// Require a named hook-protocol feature.
+        #[arg(long = "require-feature", value_name = "FEATURE")]
+        require_features: Vec<String>,
+    },
+    #[command(name = "pre-tool")]
+    PreTool {
+        #[arg(long)]
+        target: crate::config::Target,
+
+        #[arg(long, default_value = "main")]
+        default_branch: String,
+    },
+    #[command(name = "policy")]
+    Policy {
+        id: String,
+
+        #[arg(long)]
+        target: crate::config::Target,
+    },
+    /// Backward-compatible entrypoint for already-rendered Claude surfaces.
     #[command(name = "claude-pre-tool")]
     ClaudePreTool {
         #[arg(long, default_value = "main")]

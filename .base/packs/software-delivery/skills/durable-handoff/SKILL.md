@@ -1,0 +1,24 @@
+---
+id: durable-handoff
+description: Leave unfinished repository work safe for another human or agent to resume.
+---
+
+Write `.base/state/handoff.md` with YAML frontmatter binding it to the active item, followed by
+these headings:
+
+```yaml
+---
+work-item: W-NNNN
+run: YYYY-MM-DD-short-kebab-slug
+---
+```
+
+- `# Handoff`
+- `## Outcome sought`
+- `## Current state`
+- `## Evidence`
+- `## Risks and unknowns`
+- `## Next action`
+
+Keep the next action singular and executable. Point `base state set <W-NNNN>` at the active work
+item. Never use the handoff to claim verification that was not actually run.

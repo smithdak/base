@@ -11,7 +11,7 @@ Use this pipeline for repository changes that should leave an auditable plan, re
 entry. Treat the user's invocation text as the task; do not invent a separate objective.
 
 Use the task supplied alongside this explicitly invoked skill.
-Record `harness` as `codex` in the run ledger.
+Record the actual runtime, `codex` or `copilot`, as `harness` in the run ledger.
 
 ## 1. Intake
 
@@ -40,6 +40,10 @@ Run the acceptance checks named in `task.md` and the approved plan. Capture the 
 real output as files under `evidence/`; reference them from `result.md` with a pass or fail verdict
 per check. A failing check means the run is not `completed` — fix it or record the honest outcome.
 Never substitute a claim for a captured result.
+
+### Verifier: base
+
+Run `base verify base --run <run-slug>`. A `fail` or `inconclusive` verdict is not passing evidence and must be reported before proceeding.
 
 ## 5. Record
 

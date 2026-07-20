@@ -1,7 +1,8 @@
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 use tempfile::TempDir;
 
@@ -68,14 +69,35 @@ fn walking_skeleton_syncs_and_detects_drift() {
         .iter()
         .filter_map(|entry| entry["matcher"].as_str())
         .collect();
-    assert!(matchers.contains(&"Bash"));
-    assert!(matchers.contains(&"mcp__github__.*"));
+    assert!(matchers.contains(&"^(?:Bash)$"));
+    assert!(matchers.contains(&"^(?:mcp__github__.*)$"));
     assert!(settings.get("_base_generated").is_none());
     assert!(
         project
             .path()
             .join(".agents/skills/build/SKILL.md")
             .is_file()
+    );
+    assert!(project.path().join(".codex/hooks.json").is_file());
+    let codex_hooks: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".codex/hooks.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(codex_hooks["hooks"]["PreToolUse"].is_array());
+    let shared_pipeline =
+        fs::read_to_string(project.path().join(".agents/skills/build/SKILL.md")).unwrap();
+    assert!(shared_pipeline.contains("actual runtime, `codex` or `copilot`"));
+    assert!(!shared_pipeline.contains("Record `harness` as `codex`"));
+    let copilot_hooks: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".github/hooks/base.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        copilot_hooks["hooks"]["PreToolUse"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["matcher"] == "^(?:github-mcp-server-.*)$")
     );
 
     fs::write(project.path().join("CLAUDE.md"), "hand edit\n").unwrap();
@@ -91,6 +113,29 @@ fn walking_skeleton_syncs_and_detects_drift() {
     );
     success(project.path(), home.path(), &["sync", "--force"]);
     success(project.path(), home.path(), &["sync", "--check"]);
+}
+
+#[test]
+fn sync_treats_crlf_checkout_conversion_as_equivalent_text() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    success(project.path(), home.path(), &["sync"]);
+
+    let agents = project.path().join("AGENTS.md");
+    let lf = fs::read_to_string(&agents).unwrap();
+    assert!(!lf.contains("\r\n"));
+    fs::write(&agents, lf.replace('\n', "\r\n")).unwrap();
+
+    success(project.path(), home.path(), &["sync", "--check"]);
+    let changed = fs::read_to_string(&agents).unwrap().replace(
+        "Canonical definitions compile into this file",
+        "Changed canonical definitions",
+    );
+    fs::write(&agents, changed).unwrap();
+    let drift = base(project.path(), home.path(), &["sync", "--check"]);
+    assert!(!drift.status.success());
+    assert!(String::from_utf8_lossy(&drift.stderr).contains("content differs AGENTS.md"));
 }
 
 #[test]
@@ -116,6 +161,65 @@ fn init_preserves_config_and_history() {
         fs::read_to_string(project.path().join(".base/history.jsonl")).unwrap(),
         "{\"slug\":\"existing\"}\n"
     );
+}
+
+#[test]
+fn native_overlays_preserve_existing_harness_configuration() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    fs::create_dir_all(project.path().join(".base/native/.claude")).unwrap();
+    fs::create_dir_all(project.path().join(".base/native/.codex")).unwrap();
+    fs::write(
+        project.path().join(".base/native/CLAUDE.md"),
+        "# Existing Claude guidance\n\nKeep the legacy build command.\n",
+    )
+    .unwrap();
+    fs::write(
+        project.path().join(".base/native/.claude/settings.json"),
+        r#"{"permissions":{"allow":["Bash(pnpm test)"]},"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"legacy-context"}]}]}}"#,
+    )
+    .unwrap();
+    fs::write(
+        project.path().join(".base/native/.codex/hooks.json"),
+        r#"{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"legacy-context"}]}]}}"#,
+    )
+    .unwrap();
+
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["sync", "--check"]);
+    let claude = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert!(claude.contains("Existing Claude guidance"));
+    assert!(claude.contains("project native supplement"));
+    let settings: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".claude/settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(settings["permissions"]["allow"][0], "Bash(pnpm test)");
+    assert!(settings["permissions"]["deny"].is_array());
+    assert!(settings["hooks"]["SessionStart"].is_array());
+    assert!(settings["hooks"]["PreToolUse"].is_array());
+    let codex: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".codex/hooks.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(codex["hooks"]["SessionStart"].is_array());
+    assert!(codex["hooks"]["PreToolUse"].is_array());
+}
+
+#[test]
+fn native_overlays_cannot_disable_base_owned_hooks() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let overlay = project.path().join(".base/native/.github/hooks");
+    fs::create_dir_all(&overlay).unwrap();
+    fs::write(overlay.join("base.json"), r#"{"disableAllHooks":true}"#).unwrap();
+
+    let output = base(project.path(), home.path(), &["sync"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot disable Base-owned hooks"));
+    assert!(!project.path().join(".github/hooks/base.json").exists());
 }
 
 #[test]
@@ -180,11 +284,16 @@ fn work_new_scaffolds_folder_item() {
     assert_eq!(created["status"], "todo");
     assert_eq!(created["verdict"], "pending");
     assert_eq!(created["files"], serde_json::json!([]));
+    assert_eq!(created["reservation_path"], ".base/work/.ids/W-0001");
 
     let item = project
         .path()
         .join(".base/work/W-0001-ship-a-useful-thing/item.md");
     assert!(item.is_file());
+    assert_eq!(
+        fs::read_to_string(project.path().join(".base/work/.ids/W-0001")).unwrap(),
+        "W-0001-ship-a-useful-thing\n"
+    );
     let raw = fs::read_to_string(item).unwrap();
     assert!(raw.contains("status: todo"));
     assert!(raw.contains("verdict: pending"));
@@ -201,6 +310,123 @@ fn work_new_scaffolds_folder_item() {
     assert_eq!(value["title"], "Ship a useful thing");
     assert_eq!(value["tags"], serde_json::json!(["v1", "test"]));
     assert_eq!(value["body"], created["body"]);
+}
+
+#[test]
+fn concurrent_work_creation_reserves_distinct_team_ids() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+
+    let spawn = |title: &str| {
+        Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "--json",
+                "work",
+                "new",
+                title,
+                "--criterion",
+                "Reserved",
+            ])
+            .env("BASE_HOME", home.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let first = spawn("Concurrent alpha");
+    let second = spawn("Concurrent beta");
+    let first = first.wait_with_output().unwrap();
+    let second = second.wait_with_output().unwrap();
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    let second: serde_json::Value = serde_json::from_slice(&second.stdout).unwrap();
+    assert_ne!(first["id"], second["id"]);
+    assert!(project.path().join(".base/work/.ids/W-0001").is_file());
+    assert!(project.path().join(".base/work/.ids/W-0002").is_file());
+}
+
+#[test]
+fn duplicate_work_metadata_ids_fail_work_and_project_checks() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    success(
+        project.path(),
+        home.path(),
+        &["work", "new", "First", "--criterion", "Unique"],
+    );
+    let duplicate = project.path().join(".base/work/W-0001-zduplicate");
+    fs::create_dir(&duplicate).unwrap();
+    fs::write(
+        duplicate.join("item.md"),
+        "---\nid: W-0001\ntitle: Duplicate\nstatus: todo\nverdict: pending\ncreated: 2026-07-20\ntags: []\n---\n\n# Duplicate\n\n## Acceptance Criteria\n\n- [ ] Rejected\n",
+    )
+    .unwrap();
+
+    for arguments in [&["work", "list"][..], &["check"][..]] {
+        let output = base(project.path(), home.path(), arguments);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("duplicate work-item ID `W-0001`")
+        );
+    }
+}
+
+#[test]
+fn invalid_retained_work_status_verdict_pairs_fail_project_checks() {
+    for (status, verdict, expected) in [
+        ("done", "pending", "status done requires verdict pass|fail"),
+        (
+            "todo",
+            "pass",
+            "status todo must have verdict pending; pass|fail only applies to done",
+        ),
+        (
+            "doing",
+            "fail",
+            "status doing must have verdict pending; pass|fail only applies to done",
+        ),
+        (
+            "review",
+            "pass",
+            "status review must have verdict pending; pass|fail only applies to done",
+        ),
+    ] {
+        let project = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        success(project.path(), home.path(), &["init", "--project"]);
+        let item = project.path().join(".base/work/W-0001-invalid-state");
+        fs::create_dir(&item).unwrap();
+        fs::write(
+            item.join("item.md"),
+            format!(
+                "---\nid: W-0001\ntitle: Invalid state\nstatus: {status}\nverdict: {verdict}\ncreated: 2026-07-20\ntags: []\n---\n\n# Invalid state\n\n## Acceptance Criteria\n\n- [ ] Rejected\n"
+            ),
+        )
+        .unwrap();
+
+        for arguments in [&["work", "list"][..], &["check"][..]] {
+            let output = base(project.path(), home.path(), arguments);
+            assert!(!output.status.success());
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(expected),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
 }
 
 #[test]
@@ -528,16 +754,22 @@ fn check_downgrades_claude_hook_enforcement_when_base_is_off_path() {
     );
     assert!(resolved.status.success());
     let report: serde_json::Value = serde_json::from_slice(&resolved.stdout).unwrap();
-    assert_eq!(claude_denial(&report), "enforced");
+    assert_eq!(claude_denial(&report), "native-hook");
     assert_eq!(report["warnings"], serde_json::json!([]));
 }
 
 #[test]
-fn approve_writes_an_immutable_stamped_verdict() {
+fn approve_writes_a_create_new_stamped_verdict() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
     success(project.path(), home.path(), &["init", "--project"]);
-    fs::create_dir_all(project.path().join(".base/runs/2026-07-15-demo")).unwrap();
+    let demo_approvals = project.path().join(".base/runs/2026-07-15-demo/approvals");
+    fs::create_dir_all(&demo_approvals).unwrap();
+    fs::write(
+        demo_approvals.join("plan-approval.md.request"),
+        "Review the plan.",
+    )
+    .unwrap();
 
     let approved = success(
         project.path(),
@@ -590,7 +822,15 @@ fn approve_writes_an_immutable_stamped_verdict() {
     assert!(!unknown_run.status.success());
 
     // A denial is a first-class verdict on a fresh run.
-    fs::create_dir_all(project.path().join(".base/runs/2026-07-15-denied")).unwrap();
+    let denied_approvals = project
+        .path()
+        .join(".base/runs/2026-07-15-denied/approvals");
+    fs::create_dir_all(&denied_approvals).unwrap();
+    fs::write(
+        denied_approvals.join("plan-approval.md.request"),
+        "Review the plan.",
+    )
+    .unwrap();
     let denied = success(
         project.path(),
         home.path(),
@@ -604,6 +844,87 @@ fn approve_writes_an_immutable_stamped_verdict() {
     );
     let report: serde_json::Value = serde_json::from_slice(&denied.stdout).unwrap();
     assert_eq!(report["verdict"], "denied");
+
+    fs::create_dir_all(project.path().join(".base/runs/preapproved")).unwrap();
+    let preapproved = base(
+        project.path(),
+        home.path(),
+        &["approve", "preapproved", "plan-approval"],
+    );
+    assert!(!preapproved.status.success());
+    assert!(String::from_utf8_lossy(&preapproved.stderr).contains("no pending request"));
+
+    let traversal = base(
+        project.path(),
+        home.path(),
+        &["approve", "..\\outside", "plan-approval"],
+    );
+    assert!(!traversal.status.success());
+    assert!(String::from_utf8_lossy(&traversal.stderr).contains("invalid run slug"));
+}
+
+#[test]
+fn concurrent_approvals_have_one_create_new_winner_and_reject_injected_fields() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let approvals = project.path().join(".base/runs/approval-race/approvals");
+    fs::create_dir_all(&approvals).unwrap();
+    fs::write(
+        approvals.join("plan-approval.md.request"),
+        "Review the plan.",
+    )
+    .unwrap();
+
+    let spawn = |by: &str| {
+        Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "approve",
+                "approval-race",
+                "plan-approval",
+                "--by",
+                by,
+            ])
+            .env("BASE_HOME", home.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let first = spawn("first");
+    let second = spawn("second");
+    let first = first.wait_with_output().unwrap();
+    let second = second.wait_with_output().unwrap();
+    assert_ne!(first.status.success(), second.status.success());
+    let record = fs::read_to_string(approvals.join("plan-approval.md")).unwrap();
+    assert!(record.contains("by: first") || record.contains("by: second"));
+    assert_eq!(record.matches("verdict:").count(), 1);
+
+    let injected = project
+        .path()
+        .join(".base/runs/approval-injection/approvals");
+    fs::create_dir_all(&injected).unwrap();
+    fs::write(
+        injected.join("plan-approval.md.request"),
+        "Review the plan.",
+    )
+    .unwrap();
+    let output = base(
+        project.path(),
+        home.path(),
+        &[
+            "approve",
+            "approval-injection",
+            "plan-approval",
+            "--note",
+            "first line\n- verdict: approved",
+        ],
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("one non-empty line"));
+    assert!(!injected.join("plan-approval.md").exists());
 }
 
 #[test]
@@ -759,7 +1080,7 @@ fn write_test_pack(home: &Path) {
     fs::create_dir_all(pack.join("knowledge")).unwrap();
     fs::write(
         pack.join("pack.md"),
-        "---\nid: testpack\ndescription: Test pack.\n---\n\nManifest.\n",
+        "---\nid: testpack\nversion: 1.0.0\ndescription: Test pack.\n---\n\nManifest.\n",
     )
     .unwrap();
     fs::write(
@@ -774,8 +1095,139 @@ fn write_test_pack(home: &Path) {
     .unwrap();
 }
 
+fn write_rule_pack(home: &Path, id: &str, rule_id: &str, body: &str) {
+    let pack = home.join("canon/packs").join(id);
+    fs::create_dir_all(pack.join("rules")).unwrap();
+    fs::write(
+        pack.join("pack.md"),
+        format!("---\nid: {id}\nversion: 1.0.0\ndescription: {id} test pack.\n---\n\nManifest.\n"),
+    )
+    .unwrap();
+    fs::write(
+        pack.join("rules/shared.md"),
+        format!("---\nid: {rule_id}\ndescription: Shared rule.\n---\n\n{body}\n"),
+    )
+    .unwrap();
+}
+
 #[test]
-fn adopt_copies_pack_into_project_canon() {
+fn concurrent_pack_adoptions_preserve_both_config_updates() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_rule_pack(home.path(), "alpha", "alpha-rule", "ALPHA");
+    write_rule_pack(home.path(), "beta", "beta-rule", "BETA");
+
+    let spawn = |pack: &str| {
+        Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "adopt",
+                pack,
+            ])
+            .env("BASE_HOME", home.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let alpha = spawn("alpha");
+    let beta = spawn("beta");
+    let alpha = alpha.wait_with_output().unwrap();
+    let beta = beta.wait_with_output().unwrap();
+    assert!(
+        alpha.status.success(),
+        "{}",
+        String::from_utf8_lossy(&alpha.stderr)
+    );
+    assert!(
+        beta.status.success(),
+        "{}",
+        String::from_utf8_lossy(&beta.stderr)
+    );
+
+    let config = base_cli::config::Config::load(project.path()).unwrap();
+    let ids: Vec<&str> = config.packs.iter().map(|pack| pack.id.as_str()).collect();
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(&"alpha"));
+    assert!(ids.contains(&"beta"));
+    success(project.path(), home.path(), &["sync"]);
+    success(project.path(), home.path(), &["sync", "--check"]);
+}
+
+#[test]
+fn global_init_installs_the_bundled_software_delivery_library_pack() {
+    let directory = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(directory.path(), home.path(), &["init", "--global"]);
+    let manifest =
+        fs::read_to_string(home.path().join("canon/packs/software-delivery/pack.md")).unwrap();
+    assert!(manifest.contains("id: software-delivery"));
+    assert!(manifest.contains("version: 1.2.0"));
+    assert!(
+        home.path()
+            .join("canon/packs/software-delivery/policies/session-context.md")
+            .is_file()
+    );
+    fs::write(
+        home.path().join("canon/packs/software-delivery/pack.md"),
+        "locally stale\n",
+    )
+    .unwrap();
+    fs::write(
+        home.path().join("canon/rules/working-agreements.md"),
+        "personal global agreements\n",
+    )
+    .unwrap();
+    success(
+        directory.path(),
+        home.path(),
+        &["init", "--global", "--packs-only", "--force"],
+    );
+    let restored =
+        fs::read_to_string(home.path().join("canon/packs/software-delivery/pack.md")).unwrap();
+    assert!(restored.contains("version: 1.2.0"));
+    assert_eq!(
+        fs::read_to_string(home.path().join("canon/rules/working-agreements.md")).unwrap(),
+        "personal global agreements\n"
+    );
+}
+
+#[test]
+fn later_packs_win_and_the_project_overlay_wins_last() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_rule_pack(home.path(), "first", "shared-rule", "FIRST PACK");
+    write_rule_pack(home.path(), "second", "shared-rule", "SECOND PACK");
+    success(project.path(), home.path(), &["adopt", "first"]);
+    success(project.path(), home.path(), &["adopt", "second"]);
+    success(project.path(), home.path(), &["sync"]);
+    let instructions = fs::read_to_string(project.path().join("AGENTS.md")).unwrap();
+    assert!(instructions.contains("SECOND PACK"));
+    assert!(!instructions.contains("FIRST PACK"));
+
+    fs::write(
+        project.path().join(".base/canon/rules/shared.md"),
+        "---\nid: shared-rule\ndescription: Project rule.\n---\n\nPROJECT OVERLAY\n",
+    )
+    .unwrap();
+    success(project.path(), home.path(), &["sync"]);
+    let instructions = fs::read_to_string(project.path().join("AGENTS.md")).unwrap();
+    assert!(instructions.contains("PROJECT OVERLAY"));
+    assert!(!instructions.contains("SECOND PACK"));
+    let checked = success(project.path(), home.path(), &["check", "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert!(report["overrides"].as_array().unwrap().iter().any(|item| {
+        item["id"] == "shared-rule"
+            && item["replaced"] == "pack:second"
+            && item["winner"] == "project"
+    }));
+}
+
+#[test]
+fn adopt_vendors_versioned_pack_and_composes_it() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
     success(project.path(), home.path(), &["init", "--project"]);
@@ -787,27 +1239,30 @@ fn adopt_copies_pack_into_project_canon() {
     assert!(
         project
             .path()
-            .join(".base/canon/rules/testpack-rules.md")
+            .join(".base/packs/testpack/rules/testpack-rules.md")
             .is_file()
     );
     assert!(
         project
             .path()
-            .join(".base/canon/knowledge/testpack-notes.md")
+            .join(".base/packs/testpack/knowledge/testpack-notes.md")
             .is_file()
     );
-    assert!(!project.path().join(".base/canon/pack.md").exists());
-    assert!(stdout.contains("INDEX.md"));
-    assert!(stdout.contains("knowledge/testpack-notes.md"));
+    assert!(project.path().join(".base/packs/testpack/pack.md").exists());
+    assert!(stdout.contains("version 1.0.0"));
     assert!(stdout.contains("base sync"));
-    assert!(stdout.contains("commit the copied canon"));
+    assert!(stdout.contains("commit the pack"));
+
+    let config = fs::read_to_string(project.path().join(".base/base.toml")).unwrap();
+    assert!(config.contains("[[packs]]"));
+    assert!(config.contains("version = \"1.0.0\""));
 
     success(project.path(), home.path(), &["sync"]);
     success(project.path(), home.path(), &["check"]);
 }
 
 #[test]
-fn adopt_refuses_existing_files_without_partial_copy() {
+fn adopt_upgrade_requires_a_new_immutable_version() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
     success(project.path(), home.path(), &["init", "--project"]);
@@ -820,12 +1275,37 @@ fn adopt_refuses_existing_files_without_partial_copy() {
     )
     .unwrap();
 
-    let failed = base(project.path(), home.path(), &["adopt", "testpack"]);
+    let failed = base(
+        project.path(),
+        home.path(),
+        &["adopt", "testpack", "--upgrade"],
+    );
     assert!(!failed.status.success());
     let stderr = String::from_utf8_lossy(&failed.stderr);
-    assert!(stderr.contains("refusing to overwrite existing canon files"));
-    assert!(stderr.contains(".base/canon/rules/testpack-rules.md"));
-    assert!(!project.path().join(".base/canon/rules/extra.md").exists());
+    assert!(stderr.contains("version 1.0.0 changed content"));
+    assert!(
+        !project
+            .path()
+            .join(".base/packs/testpack/rules/extra.md")
+            .exists()
+    );
+
+    fs::write(
+        home.path().join("canon/packs/testpack/pack.md"),
+        "---\nid: testpack\nversion: 1.1.0\ndescription: Test pack.\n---\n\nManifest.\n",
+    )
+    .unwrap();
+    success(
+        project.path(),
+        home.path(),
+        &["adopt", "testpack", "--upgrade"],
+    );
+    assert!(
+        project
+            .path()
+            .join(".base/packs/testpack/rules/extra.md")
+            .exists()
+    );
 }
 
 #[test]
@@ -853,4 +1333,687 @@ fn adopt_requires_initialized_project() {
     assert!(!failed.status.success());
     let stderr = String::from_utf8_lossy(&failed.stderr);
     assert!(stderr.contains("base init"));
+}
+
+#[test]
+fn installed_pack_drift_is_rejected_before_composition() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    write_test_pack(home.path());
+    success(project.path(), home.path(), &["adopt", "testpack"]);
+    fs::write(
+        project
+            .path()
+            .join(".base/packs/testpack/rules/testpack-rules.md"),
+        "local mutation\n",
+    )
+    .unwrap();
+
+    let failed = base(project.path(), home.path(), &["check"]);
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains("modified locally"), "{stderr}");
+    assert!(
+        stderr.contains("changed rules/testpack-rules.md"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn skills_agents_and_policies_compile_to_native_target_surfaces() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+
+    let skill = project.path().join(".base/canon/skills/diagnostic");
+    fs::create_dir_all(skill.join("references")).unwrap();
+    fs::write(
+        skill.join("SKILL.md"),
+        "---\nid: diagnostic\ndescription: Diagnose a bounded repository problem.\n---\n\nUse the checklist.\n",
+    )
+    .unwrap();
+    fs::write(skill.join("references/checklist.md"), "# Checklist\n").unwrap();
+    fs::write(
+        project.path().join(".base/canon/agents/specialist.md"),
+        "---\nid: specialist\ndescription: Read-only diagnostic specialist.\naccess: read-only\nskills:\n  - diagnostic\n---\n\nFind the causal path.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(project.path().join(".base/canon/policies")).unwrap();
+    fs::write(
+        project
+            .path()
+            .join(".base/canon/policies/session-context.md"),
+        "---\nid: session-context\ndescription: Load current Base state.\nevent: session-start\nmode: context\ncommand: [base, state, context]\n---\n\nLoad it manually when hooks are unavailable.\n",
+    )
+    .unwrap();
+
+    success(project.path(), home.path(), &["sync"]);
+    for path in [
+        ".claude/skills/diagnostic/SKILL.md",
+        ".claude/skills/diagnostic/references/checklist.md",
+        ".agents/skills/diagnostic/SKILL.md",
+        ".agents/skills/diagnostic/references/checklist.md",
+        ".claude/agents/specialist.md",
+        ".codex/agents/specialist.toml",
+        ".github/agents/specialist.agent.md",
+        ".github/hooks/base.json",
+    ] {
+        assert!(project.path().join(path).is_file(), "missing {path}");
+    }
+    let codex_agent =
+        fs::read_to_string(project.path().join(".codex/agents/specialist.toml")).unwrap();
+    assert!(codex_agent.contains("sandbox_mode = \"read-only\""));
+    assert!(codex_agent.contains("$diagnostic"));
+    let codex_agent_toml: toml::Value = toml::from_str(&codex_agent).unwrap();
+    assert_eq!(codex_agent_toml["name"].as_str(), Some("specialist"));
+    let claude_agent =
+        fs::read_to_string(project.path().join(".claude/agents/specialist.md")).unwrap();
+    assert!(claude_agent.contains("permissionMode: plan"));
+    let copilot_agent =
+        fs::read_to_string(project.path().join(".github/agents/specialist.agent.md")).unwrap();
+    assert!(copilot_agent.contains("tools: [read, search]"));
+    let (frontmatter, _) = base_cli::canon::split_frontmatter(&copilot_agent).unwrap();
+    let copilot_agent_yaml: serde_yaml::Value = serde_yaml::from_str(frontmatter).unwrap();
+    assert_eq!(
+        copilot_agent_yaml["description"].as_str(),
+        Some("Read-only diagnostic specialist.")
+    );
+    let claude_settings: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".claude/settings.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(claude_settings["hooks"]["SessionStart"].is_array());
+    let copilot_hooks: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(project.path().join(".github/hooks/base.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(copilot_hooks["version"], 1);
+    assert!(copilot_hooks["hooks"]["SessionStart"].is_array());
+    success(project.path(), home.path(), &["sync", "--check"]);
+}
+
+#[test]
+fn policy_tool_globs_preserve_capability_meaning_through_target_aliases() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let policies = project.path().join(".base/canon/policies");
+    fs::create_dir_all(&policies).unwrap();
+    fs::write(
+        policies.join("portable-match.md"),
+        "---\nid: portable-match\ndescription: Match the same full tool names everywhere.\nevent: pre-tool-use\nmode: guard\ncommand: [rustc, --version]\nmatch-tools: [Edit, NotebookEdit, \"mcp__github__*\"]\n---\n\nPortable matcher.\n",
+    )
+    .unwrap();
+    success(project.path(), home.path(), &["sync"]);
+
+    for (path, expected) in [
+        (
+            ".claude/settings.json",
+            "^(?:Edit|NotebookEdit|mcp__github__.*)$",
+        ),
+        (".codex/hooks.json", "^(?:apply_patch|mcp__github__.*)$"),
+        (".github/hooks/base.json", "^(?:Edit|github-mcp-server-.*)$"),
+    ] {
+        let value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(project.path().join(path)).unwrap()).unwrap();
+        let group = value["hooks"]["PreToolUse"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|group| group.to_string().contains("portable-match"))
+            .unwrap_or_else(|| panic!("portable policy missing from {path}"));
+        assert_eq!(group["matcher"], expected, "{path}");
+    }
+}
+
+#[test]
+fn lifecycle_policy_wrapper_translates_context_for_each_hook_protocol() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    fs::create_dir_all(project.path().join(".base/canon/policies")).unwrap();
+    fs::write(
+        project.path().join(".base/canon/policies/compiler.md"),
+        "---\nid: compiler\ndescription: Report the Rust compiler.\nevent: session-start\nmode: context\ncommand: [rustc, --version]\n---\n\nCompiler context.\n",
+    )
+    .unwrap();
+
+    for target in ["claude", "codex", "copilot"] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "__hook",
+                "policy",
+                "compiler",
+                "--target",
+                target,
+            ])
+            .env("BASE_HOME", home.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let event = format!(
+            "{{\"cwd\":{}}}",
+            serde_json::to_string(project.path()).unwrap()
+        );
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(event.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let context = if matches!(target, "claude" | "codex") {
+            &result["hookSpecificOutput"]["additionalContext"]
+        } else {
+            &result["additionalContext"]
+        };
+        assert!(context.as_str().unwrap().starts_with("rustc "));
+    }
+}
+
+#[test]
+fn guard_policy_failure_posture_is_explicit() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    fs::create_dir_all(project.path().join(".base/canon/policies")).unwrap();
+    for (id, fail_closed) in [("closed-guard", true), ("open-guard", false)] {
+        fs::write(
+            project
+                .path()
+                .join(format!(".base/canon/policies/{id}.md")),
+            format!(
+                "---\nid: {id}\ndescription: Missing guard command.\nevent: pre-tool-use\nmode: guard\ncommand: [definitely-missing-base-guard-program]\nfail-closed: {fail_closed}\n---\n\nGuard fallback.\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    for (id, denied) in [("closed-guard", true), ("open-guard", false)] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "__hook",
+                "policy",
+                id,
+                "--target",
+                "copilot",
+            ])
+            .env("BASE_HOME", home.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let event = format!(
+            "{{\"cwd\":{},\"tool_name\":\"Bash\",\"tool_input\":{{}}}}",
+            serde_json::to_string(project.path()).unwrap()
+        );
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(event.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success());
+        if denied {
+            let decision: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(decision["permissionDecision"], "deny");
+        } else {
+            assert!(output.stdout.is_empty());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("base hook warning"));
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn policy_timeout_is_bounded_when_child_never_reads_large_stdin() {
+    use std::time::{Duration, Instant};
+
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let policies = project.path().join(".base/canon/policies");
+    fs::create_dir_all(&policies).unwrap();
+    let command = serde_json::to_string(&vec![
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        "Start-Sleep -Seconds 10",
+    ])
+    .unwrap();
+    fs::write(
+        policies.join("non-reader.md"),
+        format!(
+            "---\nid: non-reader\ndescription: Non-reading timeout guard.\nevent: pre-tool-use\nmode: guard\ncommand: {command}\ntimeout-seconds: 1\nfail-closed: true\n---\n\nDeny on timeout.\n"
+        ),
+    )
+    .unwrap();
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_base"))
+        .args([
+            "--directory",
+            project.path().to_str().unwrap(),
+            "__hook",
+            "policy",
+            "non-reader",
+            "--target",
+            "copilot",
+        ])
+        .env("BASE_HOME", home.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let event = serde_json::json!({
+        "cwd": project.path(),
+        "tool_name": "Bash",
+        "tool_input": {},
+        "padding": "x".repeat(512 * 1024)
+    });
+    let started = Instant::now();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(event.to_string().as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "policy timeout exceeded its process-level bound: {:?}",
+        started.elapsed()
+    );
+    let decision: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(decision["permissionDecision"], "deny");
+}
+
+#[test]
+fn verifier_distinguishes_pass_fail_and_inconclusive_and_retains_evidence() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let verifiers = project.path().join(".base/canon/verifiers");
+    fs::create_dir_all(&verifiers).unwrap();
+    fs::write(
+        verifiers.join("pass.md"),
+        "---\nid: pass\ndescription: Passing suite.\nchecks:\n  - id: compiler\n    run: [rustc, --version]\n---\n\nPass.\n",
+    )
+    .unwrap();
+    fs::write(
+        verifiers.join("fail.md"),
+        "---\nid: fail\ndescription: Failing suite.\nchecks:\n  - id: bad-option\n    run: [rustc, --definitely-not-a-real-option]\n---\n\nFail.\n",
+    )
+    .unwrap();
+    fs::write(
+        verifiers.join("missing.md"),
+        "---\nid: missing\ndescription: Missing tool suite.\nchecks:\n  - id: absent\n    run: [definitely-missing-base-test-program]\n---\n\nMissing.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(project.path().join(".base/runs/verify-demo")).unwrap();
+
+    let passed = success(
+        project.path(),
+        home.path(),
+        &["verify", "pass", "--run", "verify-demo", "--json"],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&passed.stdout).unwrap();
+    assert_eq!(report["verdict"], "pass");
+    assert_eq!(report["checks"][0]["output_retained"], false);
+    assert!(report["checks"][0]["stdout"].is_null());
+    assert!(report["checks"][0]["stdout_bytes"].as_u64().unwrap() > 0);
+    assert_eq!(
+        report["checks"][0]["stdout_sha256"].as_str().unwrap().len(),
+        64
+    );
+    let evidence = report["evidence_path"].as_str().unwrap();
+    assert!(project.path().join(evidence).is_file());
+    let retained: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(project.path().join(evidence)).unwrap()).unwrap();
+    assert!(retained["checks"][0]["stdout"].is_null());
+
+    for (suite, verdict) in [("fail", "fail"), ("missing", "inconclusive")] {
+        let output = base(project.path(), home.path(), &["verify", suite, "--json"]);
+        assert!(!output.status.success());
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(report["verdict"], verdict);
+    }
+}
+
+#[test]
+fn verifier_validates_run_before_executing_checks() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let marker = project.path().join("should-not-exist.txt");
+    let marker_literal = marker.to_string_lossy().replace('\'', "''");
+    let run = serde_json::to_string(&vec![
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        &format!("Set-Content -LiteralPath '{marker_literal}' -Value ran"),
+    ])
+    .unwrap();
+    let verifiers = project.path().join(".base/canon/verifiers");
+    fs::create_dir_all(&verifiers).unwrap();
+    fs::write(
+        verifiers.join("side-effect.md"),
+        format!(
+            "---\nid: side-effect\ndescription: Side-effect suite.\nchecks:\n  - id: write-marker\n    run: {run}\n---\n\nMust not execute without a valid run.\n"
+        ),
+    )
+    .unwrap();
+
+    let output = base(
+        project.path(),
+        home.path(),
+        &["verify", "side-effect", "--run", "missing-run"],
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("no run folder"));
+    assert!(!marker.exists());
+}
+
+#[test]
+fn concurrent_verifications_reserve_distinct_evidence_files() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let verifiers = project.path().join(".base/canon/verifiers");
+    fs::create_dir_all(&verifiers).unwrap();
+    fs::write(
+        verifiers.join("concurrent.md"),
+        "---\nid: concurrent\ndescription: Concurrent evidence suite.\nchecks:\n  - id: compiler\n    run: [rustc, --version]\n---\n\nConcurrent.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(project.path().join(".base/runs/concurrent")).unwrap();
+
+    let spawn = || {
+        Command::new(env!("CARGO_BIN_EXE_base"))
+            .args([
+                "--directory",
+                project.path().to_str().unwrap(),
+                "--json",
+                "verify",
+                "concurrent",
+                "--run",
+                "concurrent",
+            ])
+            .env("BASE_HOME", home.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let first = spawn();
+    let second = spawn();
+    let first = first.wait_with_output().unwrap();
+    let second = second.wait_with_output().unwrap();
+    assert!(first.status.success());
+    assert!(second.status.success());
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    let second: serde_json::Value = serde_json::from_slice(&second.stdout).unwrap();
+    assert_ne!(first["evidence_path"], second["evidence_path"]);
+    assert!(
+        project
+            .path()
+            .join(first["evidence_path"].as_str().unwrap())
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(second["evidence_path"].as_str().unwrap())
+            .is_file()
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn verifier_timeout_terminates_the_windows_process_tree() {
+    use std::time::Duration;
+
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let marker = project.path().join("surviving-child.txt");
+    let marker_literal = marker.to_string_lossy().replace('\'', "''");
+    let parent_script = format!(
+        "$child = \"Start-Sleep -Seconds 2; Set-Content -LiteralPath ''{marker_literal}'' -Value survived\"; $bytes = [Text.Encoding]::Unicode.GetBytes($child); $encoded = [Convert]::ToBase64String($bytes); Start-Process -WindowStyle Hidden -FilePath powershell.exe -ArgumentList '-NoProfile','-EncodedCommand',$encoded; Start-Sleep -Seconds 10"
+    );
+    let run = serde_json::to_string(&vec![
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        &parent_script,
+    ])
+    .unwrap();
+    let verifiers = project.path().join(".base/canon/verifiers");
+    fs::create_dir_all(&verifiers).unwrap();
+    fs::write(
+        verifiers.join("tree-timeout.md"),
+        format!(
+            "---\nid: tree-timeout\ndescription: Process-tree timeout suite.\nchecks:\n  - id: tree\n    run: {run}\n    timeout-seconds: 1\n---\n\nTree timeout.\n"
+        ),
+    )
+    .unwrap();
+
+    let output = base(
+        project.path(),
+        home.path(),
+        &["verify", "tree-timeout", "--json"],
+    );
+    assert!(!output.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["verdict"], "inconclusive");
+    std::thread::sleep(Duration::from_secs(3));
+    assert!(
+        !marker.exists(),
+        "a descendant survived the verifier timeout and wrote {}",
+        marker.display()
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn verifier_completion_terminates_background_descendants_that_close_stdio() {
+    use std::time::Duration;
+
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    let marker = project.path().join("detached-child.txt");
+    let marker_literal = marker.to_string_lossy().replace('\'', "''");
+    let parent_script = format!(
+        "$child = \"[Console]::OpenStandardOutput().Close(); [Console]::OpenStandardError().Close(); Start-Sleep -Seconds 2; Set-Content -LiteralPath ''{marker_literal}'' -Value survived\"; $bytes = [Text.Encoding]::Unicode.GetBytes($child); $encoded = [Convert]::ToBase64String($bytes); Start-Process -WindowStyle Hidden -FilePath powershell.exe -ArgumentList '-NoProfile','-EncodedCommand',$encoded; exit 0"
+    );
+    let run = serde_json::to_string(&vec![
+        "powershell.exe",
+        "-NoProfile",
+        "-Command",
+        &parent_script,
+    ])
+    .unwrap();
+    let verifiers = project.path().join(".base/canon/verifiers");
+    fs::create_dir_all(&verifiers).unwrap();
+    fs::write(
+        verifiers.join("background-cleanup.md"),
+        format!(
+            "---\nid: background-cleanup\ndescription: Background process cleanup suite.\nchecks:\n  - id: cleanup\n    run: {run}\n    timeout-seconds: 5\n---\n\nCleanup.\n"
+        ),
+    )
+    .unwrap();
+
+    let output = success(
+        project.path(),
+        home.path(),
+        &["verify", "background-cleanup", "--json"],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["verdict"], "pass");
+    std::thread::sleep(Duration::from_secs(3));
+    assert!(
+        !marker.exists(),
+        "a background descendant survived command completion and wrote {}",
+        marker.display()
+    );
+}
+
+#[test]
+fn canonical_frontmatter_rejects_unknown_fields() {
+    let cases = [
+        (
+            ".base/canon/agents/typo.md",
+            "---\nid: typo\ndescription: Typo.\nacess: read-only\n---\n\nAgent.\n",
+        ),
+        (
+            ".base/canon/pipelines/typo.md",
+            "---\nid: typo\ndescription: Typo.\nstages:\n  - use: intake\n    verifer: missing\n  - use: record\n---\n\nPipeline.\n",
+        ),
+        (
+            ".base/canon/policies/typo.md",
+            "---\nid: typo\ndescription: Typo.\nevent: pre-tool-use\nmode: guard\ncommand: [rustc, --version]\nfail_closed: true\n---\n\nPolicy.\n",
+        ),
+        (
+            ".base/canon/verifiers/typo.md",
+            "---\nid: typo\ndescription: Typo.\nchecks:\n  - id: compiler\n    run: [rustc, --version]\n    timeout_seconds: 1\n---\n\nVerifier.\n",
+        ),
+    ];
+
+    for (path, source) in cases {
+        let project = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        success(project.path(), home.path(), &["init", "--project"]);
+        let path = project.path().join(path);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, source).unwrap();
+        let output = base(project.path(), home.path(), &["check"]);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("unknown field"),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn malformed_agent_tools_fail_canon_validation() {
+    for (tools, expected) in [
+        (
+            r#"["Read, Write"]"#,
+            "printable single tool names without commas",
+        ),
+        (
+            r#"["Read\npermissionMode: bypassPermissions"]"#,
+            "printable single tool names without commas",
+        ),
+        ("[Read, Read]", "repeats tool `Read`"),
+    ] {
+        let project = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        success(project.path(), home.path(), &["init", "--project"]);
+        fs::write(
+            project.path().join(".base/canon/agents/unsafe.md"),
+            format!(
+                "---\nid: unsafe\ndescription: Unsafe tools.\ntools: {tools}\n---\n\nUnsafe.\n"
+            ),
+        )
+        .unwrap();
+
+        let output = base(project.path(), home.path(), &["check"]);
+        assert!(!output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(expected),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn state_points_to_real_work_and_validates_the_handoff_contract() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+    success(
+        project.path(),
+        home.path(),
+        &["work", "new", "State demo", "--criterion", "Can resume"],
+    );
+    fs::create_dir_all(project.path().join(".base/runs/state-demo")).unwrap();
+    fs::write(
+        project.path().join(".base/state/handoff.md"),
+        "---\nwork-item: W-0001\nrun: state-demo\n---\n\n# Handoff\n\n## Next action\n\nResume the demo.\n",
+    )
+    .unwrap();
+    success(project.path(), home.path(), &["state", "set", "W-0001"]);
+    let shown = success(project.path(), home.path(), &["state", "show", "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&shown.stdout).unwrap();
+    assert_eq!(report["current_work"], "W-0001");
+    assert_eq!(report["active_run"], "state-demo");
+    assert!(
+        report["handoff"]
+            .as_str()
+            .unwrap()
+            .contains("Resume the demo")
+    );
+
+    fs::write(
+        project.path().join(".base/state/handoff.md"),
+        "---\nwork-item: W-0001\nrun: state-demo\n---\n\n# Handoff\n\nNo executable next action.\n",
+    )
+    .unwrap();
+    let failed = base(project.path(), home.path(), &["state", "show"]);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("## Next action"));
+
+    fs::write(
+        project.path().join(".base/state/handoff.md"),
+        "---\nwork-item: W-0001\nrun: state-demo\n---\n\n# Handoff\n\n## Next action\n\n## State\n\nStill empty.\n",
+    )
+    .unwrap();
+    let failed = base(project.path(), home.path(), &["state", "show"]);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("non-empty"));
+
+    fs::write(
+        project.path().join(".base/state/handoff.md"),
+        "---\nwork-item: W-0001\nrun: state-demo\n---\n\n# Handoff\n\n## Next action\n\nResume one.\n",
+    )
+    .unwrap();
+    success(
+        project.path(),
+        home.path(),
+        &[
+            "work",
+            "new",
+            "Second state",
+            "--criterion",
+            "Can resume two",
+        ],
+    );
+    let switched = base(project.path(), home.path(), &["state", "set", "W-0002"]);
+    assert!(!switched.status.success());
+    assert!(String::from_utf8_lossy(&switched.stderr).contains("belongs to W-0001"));
+
+    success(project.path(), home.path(), &["state", "clear"]);
+    assert!(!project.path().join(".base/state/current-work").exists());
+    assert!(!project.path().join(".base/state/handoff.md").exists());
 }

@@ -1,0 +1,94 @@
+{
+  "suite": "base",
+  "description": "Full source, lint, test, specification, and generated-surface contract for Base.",
+  "verdict": "pass",
+  "started_at": "2026-07-20T20:54:39.845Z",
+  "finished_at": "2026-07-20T20:54:48.184Z",
+  "checks": [
+    {
+      "id": "format",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 457,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_retained": false,
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 658,
+      "stdout_bytes": 0,
+      "stderr_bytes": 72,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "f591e097f22f91dd5c31fbbf7e587d80c0a4e0ed594f9c9012a544f38c52d926",
+      "output_retained": false,
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "tests",
+      "argv": [
+        "cargo",
+        "test",
+        "--all-targets",
+        "--all-features"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 6663,
+      "stdout_bytes": 5702,
+      "stderr_bytes": 382,
+      "stdout_sha256": "2d3d20eec2875db3ba479089672d25cfee5b8e65ade3c78f7ca03720688e203a",
+      "stderr_sha256": "028abbbe05286753c779a48e7c5326159bb934609cb483e72a8df4c4abce0c5f",
+      "output_retained": false,
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "generated-surfaces",
+      "argv": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "sync",
+        "--check"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 558,
+      "stdout_bytes": 39,
+      "stderr_bytes": 0,
+      "stdout_sha256": "5d63f57a81ab421550e776770a30fd2f07a0b44c9a5ddff13b10dacfacb46680",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_retained": false,
+      "output_truncated": false,
+      "note": null
+    }
+  ],
+  "evidence_path": ".base/runs/2026-07-20-operating-model-core/evidence/verifications/base-20260720T205439.845Z-p36280.json"
+}

@@ -2,9 +2,24 @@
 
 # base agentic system
 
-Canonical definitions compile into this file. Change `.base/canon/` and run `base sync`; never edit this output directly.
+Canonical definitions compile into this file. Change `.base/canon/` or installed pack inputs and run `base sync`; never edit generated output directly.
+
+## Composition
+
+Installed packs compose in declaration order; later packs override earlier IDs and `.base/canon/` is the final project overlay:
+- `software-delivery` version `1.2.0` — A reusable evidence-led software delivery operating model for repository work.
 
 ## Rules
+
+### Delivery Discipline
+
+- Establish the current work item, intended outcome, and acceptance checks before implementation.
+- Commit both a new work-item folder and its reported `.base/work/.ids/W-NNNN` reservation; stage
+  the whole `.base/work/` change so cross-branch duplicate IDs cannot merge silently.
+- Separate repository-local proof from unavailable infrastructure or production proof.
+- Treat failed and inconclusive verification as distinct non-passing outcomes.
+- Preserve a handoff whenever work stops with a safe next action still outstanding.
+- Record architecture decisions that constrain future implementation, not transient tactics.
 
 ### Working Agreements
 
@@ -19,27 +34,49 @@ Canonical definitions compile into this file. Change `.base/canon/` and run `bas
 
 ## Agents
 
-These are advisory roles. Use their posture when the task calls for it:
+Native GitHub Copilot custom agents are available under `.github/agents/`.
 - **builder** — Implements approved plans and verifies the resulting behavior.
+- **delivery-analyst** — Maps the requested outcome to repository reality before a plan is approved.
+- **delivery-auditor** — Challenges a change against its acceptance checks, risks, and retained evidence.
+- **delivery-implementer** — Implements an approved, bounded change and retains verification evidence.
 - **reviewer** — Reviews changes for correctness, regressions, safety, and missing verification.
+
+## Skills
+
+- agent skill `decision-record` — Record a durable architecture decision with alternatives and consequences
+- agent skill `durable-handoff` — Leave unfinished repository work safe for another human or agent to resume
+- agent skill `evidence-review` — Evaluate whether retained evidence supports the delivery claims being made
+- agent skill `pickup` — Resume repository work from Base current-work state and a durable handoff
 
 ## Pipelines
 
-- `.github/prompts/automation.prompt.md` — Turn a repetitive manual procedure into a proven, repeatable mechanism
-- `.github/prompts/build.prompt.md` — Plan, approve, implement, verify, and record a software change
-- `.github/prompts/fix.prompt.md` — Diagnose, plan, approve, repair, and prove a defect fix
-- `.github/prompts/research.prompt.md` — Investigate a question from real sources and land cited findings
-- `.github/prompts/writing.prompt.md` — Outline, approve, draft, and deliver a written artifact
+- Agent Skill `$automation` or VS Code prompt `.github/prompts/automation.prompt.md` — Turn a repetitive manual procedure into a proven, repeatable mechanism
+- Agent Skill `$build` or VS Code prompt `.github/prompts/build.prompt.md` — Plan, approve, implement, verify, and record a software change
+- Agent Skill `$delivery` or VS Code prompt `.github/prompts/delivery.prompt.md` — Discover, approve, implement, prove, review, and record a software change
+- Agent Skill `$fix` or VS Code prompt `.github/prompts/fix.prompt.md` — Diagnose, plan, approve, repair, and prove a defect fix
+- Agent Skill `$research` or VS Code prompt `.github/prompts/research.prompt.md` — Investigate a question from real sources and land cited findings
+- Agent Skill `$writing` or VS Code prompt `.github/prompts/writing.prompt.md` — Outline, approve, draft, and deliver a written artifact
+
+## Lifecycle policies
+
+- **session-context** (`session-start` / `context` / `native-hook`): Inject the active work item and durable handoff at session start.
+
+## Verifiers
+
+- `base verify base` — Full source, lint, test, specification, and generated-surface contract for Base.
+- `base verify delivery-foundation` — Prove canonical composition and generated target surfaces are valid and drift-free.
 
 ## Gates
 
-- **plan-approval** (`advisory`): Do not execute until the user explicitly approves the written plan.
-- **never-push-default-branch** (`advisory`): Never push directly to the repository default branch.
+- **plan-approval** (`hybrid-hook`): Do not execute until the user explicitly approves the written plan.
+- **never-push-default-branch** (`native-hook`): Never push directly to the repository default branch.
 - The repository default branch is `main`.
 
 ## State and knowledge
 
-- Work items: `.base/work/` (one folder per item; canonical file `item.md`, statuses todo|doing|review|done); run artifacts: `.base/runs/`; append-only ledger: `.base/history.jsonl`.
+- Current work: `base state show`; session context: `base state context`; durable handoff: `.base/state/handoff.md`.
+- Work items: `.base/work/` (statuses `todo|doing|review|done`; `done` requires a human `pass|fail` verdict); run artifacts: `.base/runs/`; append-only ledger: `.base/history.jsonl`.
 - Load canonical knowledge on demand from:
   - `.base/canon/knowledge/INDEX.md`
   - `.base/canon/knowledge/adapter-surfaces.md`
+  - `.base/packs/software-delivery/knowledge/operating-model.md`
