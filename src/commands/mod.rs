@@ -2,8 +2,10 @@ mod adopt;
 mod approve;
 mod check;
 mod hook;
+mod ingest;
 mod init;
 mod log;
+mod pack;
 mod state;
 mod sync;
 mod verify;
@@ -47,6 +49,12 @@ pub fn run(cli: Cli) -> Result<()> {
             let _lock = RepositoryLock::project(&root, LockMode::Exclusive)?;
             adopt::run(&root, args, cli.json)
         }
+        Command::Ingest(args) => {
+            let root = find_project_root(&start)?;
+            let _lock = RepositoryLock::project(&root, LockMode::Shared)?;
+            ingest::run(&root, args, cli.json)
+        }
+        Command::Pack(args) => pack::run(args, cli.json),
         Command::Work(args) => {
             let root = find_project_root(&start)?;
             let mode = match &args.command {

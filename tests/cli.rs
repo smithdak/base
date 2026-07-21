@@ -2017,3 +2017,146 @@ fn state_points_to_real_work_and_validates_the_handoff_contract() {
     assert!(!project.path().join(".base/state/current-work").exists());
     assert!(!project.path().join(".base/state/handoff.md").exists());
 }
+
+fn seed_file(path: &Path, content: &str) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, content).unwrap();
+}
+
+#[test]
+fn ingest_reports_honest_fidelity_buckets_for_a_loose_claude_project() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+
+    let src = project.path().join("legacy");
+    seed_file(
+        &src.join(".claude/agents/analyst.md"),
+        "---\nname: analyst\ndescription: Analyze.\ntools: Read\nmodel: opus\n---\n\nAnalyze.\n",
+    );
+    seed_file(
+        &src.join(".claude/settings.json"),
+        r#"{"permissions":{"deny":["Bash(git push * main*)"]},"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"guard"}]}],"Notification":[{"hooks":[{"type":"command","command":"x"}]}]}}"#,
+    );
+    seed_file(&src.join(".claude/mystery.txt"), "unrecognized\n");
+    seed_file(&src.join("CLAUDE.md"), "# Project\n\nDo good work.\n");
+
+    let output = success(
+        project.path(),
+        home.path(),
+        &["--json", "ingest", src.to_str().unwrap()],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["source_kind"], "loose-claude");
+    assert!(report["summary"]["partial"].as_u64().unwrap() >= 1);
+    assert!(report["summary"]["unmapped"].as_u64().unwrap() >= 1);
+
+    let artifacts = report["artifacts"].as_array().unwrap();
+    // A deny rule surfaces as a standing-denial gate candidate.
+    assert!(artifacts.iter().any(|a| a["target"] == "gate"));
+    // The Claude-only `model` knob is reported, never silently dropped.
+    assert!(artifacts.iter().any(|a| {
+        a["claude_only_fields"]
+            .as_array()
+            .is_some_and(|fields| fields.iter().any(|field| field == "model"))
+    }));
+    // A PreToolUse command hook maps to a policy; Notification does not.
+    assert!(
+        artifacts
+            .iter()
+            .any(|a| a["name"] == "PreToolUse[0]" && a["target"] == "policy")
+    );
+    assert!(
+        artifacts
+            .iter()
+            .any(|a| a["name"] == "Notification[0]" && a["target"].is_null())
+    );
+    // The stray file is surfaced for review.
+    assert!(
+        report["unmapped"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p.as_str().unwrap().contains("mystery"))
+    );
+
+    // With --run, the inventory and mapping report are retained as run evidence.
+    success(project.path(), home.path(), &["work", "new", "Migrate legacy"]);
+    fs::create_dir_all(project.path().join(".base/runs/demo-run")).unwrap();
+    success(
+        project.path(),
+        home.path(),
+        &["ingest", src.to_str().unwrap(), "--run", "demo-run"],
+    );
+    let evidence = project.path().join(".base/runs/demo-run/evidence/migration");
+    let entries: Vec<_> = fs::read_dir(&evidence).unwrap().flatten().collect();
+    assert!(entries.iter().any(|e| e.path().extension().is_some_and(|x| x == "json")));
+    assert!(entries.iter().any(|e| e.path().extension().is_some_and(|x| x == "md")));
+}
+
+#[test]
+fn ingest_detects_a_plugin_manifest_as_the_pack_source() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+
+    let src = project.path().join("mck-plugin");
+    seed_file(
+        &src.join(".claude-plugin/plugin.json"),
+        r#"{"name":"mck","version":"1.2.0","description":"Client system"}"#,
+    );
+    seed_file(
+        &src.join("agents/analyst.md"),
+        "---\nname: analyst\ndescription: Analyze.\n---\n\nAnalyze.\n",
+    );
+
+    let output = success(
+        project.path(),
+        home.path(),
+        &["--json", "ingest", src.to_str().unwrap()],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["source_kind"], "plugin");
+    assert_eq!(report["plugin"]["name"], "mck");
+    let artifacts = report["artifacts"].as_array().unwrap();
+    assert!(artifacts.iter().any(|a| a["target"] == "pack-manifest"));
+    // Root-level members are discovered even without a `.claude/` prefix.
+    assert!(artifacts.iter().any(|a| a["name"] == "analyst" && a["target"] == "agent"));
+}
+
+#[test]
+fn pack_new_scaffolds_and_check_validates_before_adoption() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+
+    success(project.path(), home.path(), &["pack", "new", "mck"]);
+    let pack_root = home.path().join("canon/packs/mck");
+    assert!(pack_root.join("pack.md").is_file());
+
+    let checked = success(
+        project.path(),
+        home.path(),
+        &["--json", "pack", "check", pack_root.to_str().unwrap()],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&checked.stdout).unwrap();
+    assert_eq!(report["pack"], "mck");
+    assert_eq!(report["version"], "0.1.0");
+
+    // A second scaffold of the same id is refused.
+    let duplicate = base(project.path(), home.path(), &["pack", "new", "mck"]);
+    assert!(!duplicate.status.success());
+
+    // A malformed pack fails validation before it can be adopted.
+    let bad = project.path().join("badpack");
+    seed_file(
+        &bad.join("pack.md"),
+        "---\nid: bad\nversion: 0.1.0\ndescription: Broken pack.\n---\n\nBody.\n",
+    );
+    seed_file(&bad.join("agents/broken.md"), "no frontmatter here\n");
+    let output = base(
+        project.path(),
+        home.path(),
+        &["pack", "check", bad.to_str().unwrap()],
+    );
+    assert!(!output.status.success());
+}

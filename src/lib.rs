@@ -2,6 +2,7 @@ pub mod canon;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod ingest;
 pub mod integrity;
 pub mod lock;
 pub mod pack;

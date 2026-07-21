@@ -23,8 +23,8 @@ pub struct Canon {
 }
 
 impl Canon {
-    pub fn load(global_root: &Path, project_root: &Path, config: &Config) -> Result<Self> {
-        let mut canon = Self {
+    fn empty() -> Self {
+        Self {
             rules: BTreeMap::new(),
             agents: BTreeMap::new(),
             skills: BTreeMap::new(),
@@ -34,7 +34,21 @@ impl Canon {
             verifiers: BTreeMap::new(),
             knowledge: BTreeMap::new(),
             overrides: Vec::new(),
-        };
+        }
+    }
+
+    /// Load a single pack directory in isolation for pre-adoption validation.
+    /// Parses every canonical document (frontmatter plus per-kind validators)
+    /// but skips cross-definition validation, since a pack legitimately
+    /// references stages, agents, and verifiers supplied by other layers.
+    pub fn load_pack_dir(root: &Path, pack_id: &str) -> Result<Self> {
+        let mut canon = Self::empty();
+        canon.load_layer(root, Layer::Pack, Some(pack_id))?;
+        Ok(canon)
+    }
+
+    pub fn load(global_root: &Path, project_root: &Path, config: &Config) -> Result<Self> {
+        let mut canon = Self::empty();
 
         let global_canon = global_root.join("canon");
         if global_canon.is_dir() {
