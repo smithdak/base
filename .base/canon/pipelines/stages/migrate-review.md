@@ -1,11 +1,12 @@
 ---
 id: migrate-review
-description: Independently confirm the pack reproduces the source and adds base's model.
+description: Independently confirm the redesign is better, not just smaller.
 ---
 
-In a context that did not author the pack, check the migration against the retained inventory. Confirm
-every source capability the plan promised to carry is present in the pack, every dropped or
-out-of-canon surface was a recorded decision rather than an omission, and the fidelity report is
-honest — no partial mapping dressed up as native. Confirm the base improvements the plan named are
-actually present (gates, verifiers, work/handoff, cross-harness output). Raise anything unproven or
-missing before the pack is trusted.
+In a context that did not author the pack, judge the redesign against the retained understanding.
+Confirm every real capability the source delivered is still delivered — consolidation must not have
+dropped a capability, only its fragmentation. Confirm each merge, rename, and drop was a recorded,
+justified decision, and that the result is genuinely base-native (role-based agents, gated pipelines
+with verifiers, domain knowledge, clear names) rather than a thinned-out clone. Confirm the base
+improvements are present (gates, verifiers, work/handoff, cross-harness output). Raise anything lost,
+unproven, or still over-fragmented before the pack is trusted.

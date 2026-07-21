@@ -1,11 +1,12 @@
 ---
 id: migrate-inventory
-description: Model the source system deterministically and retain its inventory as run evidence.
+description: Understand the source system and retain the understanding as run evidence.
 ---
 
-Run `base ingest <source-path> --run <run-slug>` against the system to migrate. This models a Claude
-Code source — a `.claude-plugin/plugin.json` bundle first, else loose `.claude/` directories — into a
-portable inventory plus a canon mapping/fidelity report, retained under the run's
-`evidence/migration/`. Read the whole report. Account for every artifact and every entry in the
-`unmapped`, `claude-only`, and out-of-canon buckets — nothing is dropped silently. Do not author any
-canon yet; ingest reports, it never writes canon.
+Run `base ingest <source-path> --run <run-slug>`. It resolves the source (a project root or the
+`.claude` directory itself), summarizes harness config instead of enumerating it, classifies the
+whole tree into knowledge / state / tooling / generated raw material, and surfaces capability
+clusters and redundancy signals. Read the whole understanding report. Note the fragmentation signals
+(families of near-duplicate agents, over-large agent counts), the real capabilities behind them, and
+which raw material is durable knowledge versus runtime state versus tooling versus generated output.
+Do not design or author yet — understand first.

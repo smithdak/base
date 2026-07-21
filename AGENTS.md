@@ -54,7 +54,7 @@ Native Codex custom agents are available under `.codex/agents/`.
 - `$build` — Plan, approve, implement, verify, and record a software change
 - `$delivery` — Discover, approve, implement, prove, review, and record a software change
 - `$fix` — Diagnose, plan, approve, repair, and prove a defect fix
-- `$migrate` — Ingest another agent system and author an improved, adoptable base pack
+- `$migrate` — Understand another agent system and design a better base-native one
 - `$research` — Investigate a question from real sources and land cited findings
 - `$writing` — Outline, approve, draft, and deliver a written artifact
 
@@ -80,5 +80,5 @@ Native Codex custom agents are available under `.codex/agents/`.
 - Load canonical knowledge on demand from:
   - `.base/canon/knowledge/INDEX.md`
   - `.base/canon/knowledge/adapter-surfaces.md`
-  - `.base/canon/knowledge/migration-mapping.md`
+  - `.base/canon/knowledge/migration-architecture.md`
   - `.base/packs/software-delivery/knowledge/operating-model.md`

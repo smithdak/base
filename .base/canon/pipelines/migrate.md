@@ -1,10 +1,10 @@
 ---
 id: migrate
-description: Ingest another agent system and author an improved, adoptable base pack.
+description: Understand another agent system and design a better base-native one.
 stages:
   - use: migrate-inventory
     agent: delivery-analyst
-  - use: migrate-plan
+  - use: migrate-design
     gate: plan-approval
     agent: delivery-analyst
   - use: migrate-author
@@ -18,8 +18,10 @@ stages:
   - use: record
 ---
 
-Use to migrate a client or legacy system (agents, skills, commands, hooks, workflows) into Base as a
-reusable pack. The output is a library pack under `~/.base/canon/packs/<id>/` that reproduces what
-the old system did and improves it by adding Base's operating model. `base ingest` models the source
-deterministically and reports fidelity; the pack itself is an authored rewrite, never a byte copy
-(docs/DECISIONS.md D-019/D-028). Load `knowledge/migration-mapping.md` before mapping.
+Use to migrate a client or legacy system (agents, skills, commands, hooks, workflows) into Base.
+Assume the source is messy and over-built. The goal is **not a mirror** — it is to understand what
+the system actually does and design a better one using Base's methodology: capability-first, a
+minimal set of role-based agents, capabilities as gated pipelines with verifiers, domain expertise
+as knowledge, base-native naming. `base ingest` understands the source and surfaces its
+fragmentation; the human approves an architecture; the agent authors the pack. Load
+`knowledge/migration-architecture.md` before designing.
