@@ -464,3 +464,35 @@ to. Newest entries at the bottom.
 - **Commits us to:** ingestion that reports rather than writes canon; honest per-artifact fidelity
   over a false sense of completeness; and pack promotion always being an authored rewrite, proven by
   `base pack check` and adoption before it is trusted.
+
+## D-029: Ingest understands for a redesign; migration is capability-first, not a mirror
+
+- **Status:** accepted (2026-07-21)
+- **Context:** Running D-028's reader against a real 145 MB Sitecore system (`D:\MISE\old`, ~11k
+  files) exposed that the "map each source thing to a canon slot" framing produces a *mirror of the
+  mess*. 324 of 379 "artifacts" were `settings.local.json` permission entries; 38 bespoke directories
+  were opaque "unmapped"; and the source itself was over-built — 24 agents including an 8-member
+  `security-*` scanner family and an 8-member `*-expert` family where a few roles + gated pipelines +
+  domain knowledge would be better. A faithful 1:1 port preserves fragmentation the client would be
+  better off without.
+- **Decision:** Migration understands the source in order to design a *better* base-native system,
+  not to mirror it. The Rust reader's job is understanding only: it summarizes harness config
+  (permissions/MCP) instead of enumerating it (D-015), classifies the whole tree by content type
+  (knowledge / state / tooling / generated) into per-directory rollups, and surfaces capability
+  clusters and redundancy signals (name-affix and identical-tool families, over-large agent counts)
+  so fragmentation is visible. It accepts either the project root or the `.claude` directory itself.
+  The *design* is the `/migrate` agent's, under a written architecture doctrine
+  (`knowledge/migration-architecture.md`): capability-first, a minimal role set (analyst / implementer
+  / reviewer + only genuinely distinct specialists), capabilities as gated pipelines with verifiers,
+  domain expertise as knowledge, base-native naming — with a human gate on the proposed architecture
+  before any authoring. State, generated output, and bespoke tooling are classified and flagged
+  rebuild/drop, never copied.
+- **Rejected alternative:** a routing map that assigns every source file a destination and a
+  fidelity, i.e. a faithful port. It reproduces over-fragmentation and treats the source's structure
+  as authoritative when the whole reason to migrate is that it is not.
+- **Amends:** D-028's fidelity-mirror emphasis. The reader still reports honestly and never writes
+  canon; but the target is a redesign, and "understand" means expose structure and redundancy, not
+  propose a slot for every file.
+- **Commits us to:** the reader exposing signals rather than deciding; migration defaulting to
+  consolidation and base-native naming; and every merge, rename, and drop being a recorded,
+  human-approved architecture decision.

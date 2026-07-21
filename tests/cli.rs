@@ -2024,22 +2024,31 @@ fn seed_file(path: &Path, content: &str) {
 }
 
 #[test]
-fn ingest_reports_honest_fidelity_buckets_for_a_loose_claude_project() {
+fn ingest_understands_a_messy_system_without_flooding() {
     let project = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
     success(project.path(), home.path(), &["init", "--project"]);
 
     let src = project.path().join("legacy");
-    seed_file(
-        &src.join(".claude/agents/analyst.md"),
-        "---\nname: analyst\ndescription: Analyze.\ntools: Read\nmodel: opus\n---\n\nAnalyze.\n",
-    );
+    // An over-fragmented security-* family with identical tools.
+    for n in ["injection", "crypto", "ssrf"] {
+        seed_file(
+            &src.join(format!(".claude/agents/security-{n}.md")),
+            &format!("---\nname: security-{n}\ndescription: Scan {n}.\ntools: Read, Grep, Glob\n---\n\nScan.\n"),
+        );
+    }
+    // A big allowlist that must NOT flood the definitions.
+    let allow: Vec<String> = (0..40).map(|i| format!("\"Bash(cmd{i} *)\"")).collect();
     seed_file(
         &src.join(".claude/settings.json"),
-        r#"{"permissions":{"deny":["Bash(git push * main*)"]},"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"guard"}]}],"Notification":[{"hooks":[{"type":"command","command":"x"}]}]}}"#,
+        &format!(
+            "{{\"permissions\":{{\"allow\":[{}],\"deny\":[\"Bash(git push * main*)\"]}},\"hooks\":{{\"PreToolUse\":[{{\"matcher\":\"Bash\",\"hooks\":[{{\"type\":\"command\",\"command\":\"guard\"}}]}}]}}}}",
+            allow.join(",")
+        ),
     );
-    seed_file(&src.join(".claude/mystery.txt"), "unrecognized\n");
-    seed_file(&src.join("CLAUDE.md"), "# Project\n\nDo good work.\n");
+    seed_file(&src.join(".claude/memory/glossary.md"), "# Terms\n\nDA = ...\n");
+    seed_file(&src.join(".claude/ado/cache.json"), "{}\n");
+    seed_file(&src.join(".claude/tools/sync.ps1"), "echo hi\n");
 
     let output = success(
         project.path(),
@@ -2048,39 +2057,45 @@ fn ingest_reports_honest_fidelity_buckets_for_a_loose_claude_project() {
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["source_kind"], "loose-claude");
-    assert!(report["summary"]["partial"].as_u64().unwrap() >= 1);
-    assert!(report["summary"]["unmapped"].as_u64().unwrap() >= 1);
 
-    let artifacts = report["artifacts"].as_array().unwrap();
-    // A deny rule surfaces as a standing-denial gate candidate.
-    assert!(artifacts.iter().any(|a| a["target"] == "gate"));
-    // The Claude-only `model` knob is reported, never silently dropped.
-    assert!(artifacts.iter().any(|a| {
-        a["claude_only_fields"]
-            .as_array()
-            .is_some_and(|fields| fields.iter().any(|field| field == "model"))
-    }));
-    // A PreToolUse command hook maps to a policy; Notification does not.
+    // The 40-entry allowlist is ONE summary, not 40 definitions.
+    let defs = report["definitions"].as_array().unwrap();
+    assert!(defs.len() < 12, "definitions flooded: {}", defs.len());
+    assert_eq!(report["config"]["allow"], 40);
     assert!(
-        artifacts
-            .iter()
-            .any(|a| a["name"] == "PreToolUse[0]" && a["target"] == "policy")
-    );
-    assert!(
-        artifacts
-            .iter()
-            .any(|a| a["name"] == "Notification[0]" && a["target"].is_null())
-    );
-    // The stray file is surfaced for review.
-    assert!(
-        report["unmapped"]
+        report["config"]["gate_candidates"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|p| p.as_str().unwrap().contains("mystery"))
+            .any(|r| r.as_str().unwrap().contains("push"))
     );
 
-    // With --run, the inventory and mapping report are retained as run evidence.
+    // Over-fragmentation surfaces as a consolidation signal.
+    assert!(
+        report["clusters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| {
+                let l = c["label"].as_str().unwrap();
+                l.starts_with("security-") || l.starts_with("shared-tools")
+            })
+    );
+
+    // Bespoke dirs are classified by content type.
+    let cat = |p: &str| {
+        report["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["path"] == p)
+            .map(|d| d["category"].as_str().unwrap().to_owned())
+    };
+    assert_eq!(cat(".claude/memory").as_deref(), Some("knowledge"));
+    assert_eq!(cat(".claude/ado").as_deref(), Some("state"));
+    assert_eq!(cat(".claude/tools").as_deref(), Some("tooling"));
+
+    // Retained as run evidence with --run.
     success(project.path(), home.path(), &["work", "new", "Migrate legacy"]);
     fs::create_dir_all(project.path().join(".base/runs/demo-run")).unwrap();
     success(
@@ -2118,10 +2133,10 @@ fn ingest_detects_a_plugin_manifest_as_the_pack_source() {
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["source_kind"], "plugin");
     assert_eq!(report["plugin"]["name"], "mck");
-    let artifacts = report["artifacts"].as_array().unwrap();
-    assert!(artifacts.iter().any(|a| a["target"] == "pack-manifest"));
+    let defs = report["definitions"].as_array().unwrap();
+    assert!(defs.iter().any(|a| a["target"] == "pack-manifest"));
     // Root-level members are discovered even without a `.claude/` prefix.
-    assert!(artifacts.iter().any(|a| a["name"] == "analyst" && a["target"] == "agent"));
+    assert!(defs.iter().any(|a| a["name"] == "analyst" && a["target"] == "agent"));
 }
 
 #[test]
