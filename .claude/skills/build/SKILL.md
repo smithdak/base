@@ -43,6 +43,10 @@ real output as files under `evidence/`; reference them from `result.md` with a p
 per check. A failing check means the run is not `completed` — fix it or record the honest outcome.
 Never substitute a claim for a captured result.
 
+### Verifier: base
+
+Run `base verify base --run <run-slug>`. A `fail` or `inconclusive` verdict is not passing evidence and must be reported before proceeding.
+
 ## 5. Record
 
 Always run this stage, including after rejection, failure, or abort. Append exactly one compact JSON

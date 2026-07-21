@@ -13,7 +13,7 @@ is read-only outside its own artifacts — findings that demand changes become w
 decision entries, never edits made mid-run.
 
 Use the task supplied alongside this explicitly invoked skill.
-Record `harness` as `codex` in the run ledger.
+Record the actual runtime, `codex` or `copilot`, as `harness` in the run ledger.
 
 ## 1. Intake
 

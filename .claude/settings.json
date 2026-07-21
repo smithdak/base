@@ -7,7 +7,9 @@
           {
             "args": [
               "__hook",
-              "claude-pre-tool",
+              "pre-tool",
+              "--target",
+              "claude",
               "--default-branch",
               "main"
             ],
@@ -17,14 +19,16 @@
             "type": "command"
           }
         ],
-        "matcher": "Bash"
+        "matcher": "^(?:Bash)$"
       },
       {
         "hooks": [
           {
             "args": [
               "__hook",
-              "claude-pre-tool",
+              "pre-tool",
+              "--target",
+              "claude",
               "--default-branch",
               "main"
             ],
@@ -34,14 +38,16 @@
             "type": "command"
           }
         ],
-        "matcher": "Edit|Write|NotebookEdit"
+        "matcher": "^(?:Edit|Write|NotebookEdit)$"
       },
       {
         "hooks": [
           {
             "args": [
               "__hook",
-              "claude-pre-tool",
+              "pre-tool",
+              "--target",
+              "claude",
               "--default-branch",
               "main"
             ],
@@ -51,7 +57,26 @@
             "type": "command"
           }
         ],
-        "matcher": "mcp__github__.*"
+        "matcher": "^(?:mcp__github__.*)$"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "args": [
+              "__hook",
+              "policy",
+              "session-context",
+              "--target",
+              "claude"
+            ],
+            "command": "base",
+            "statusMessage": "Running base policy session-context",
+            "timeout": 12,
+            "type": "command"
+          }
+        ]
       }
     ]
   },

@@ -1,9 +1,9 @@
 [package]
 name = "base-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
-rust-version = "1.85"
-description = "Define agentic systems once and compile them to coding-agent harnesses"
+rust-version = "1.93"
+description = "Repository operating-model core for Claude Code, Codex, and GitHub Copilot"
 license = "MIT"
 repository = "https://github.com/smithdak/base"
 include = [
@@ -11,9 +11,11 @@ include = [
     "tests/**",
     "Cargo.toml",
     "Cargo.lock",
+    "rust-toolchain.toml",
     "README.md",
     "LICENSE",
     "docs/**",
+    "assets/**",
 ]
 
 [[bin]]
@@ -24,14 +26,16 @@ path = "src/main.rs"
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4.5", features = ["derive"] }
+command-group = "5.0.1"
 dirs = "6.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
+semver = "1.0"
 sha2 = "0.10"
 shell-words = "1.1"
+tempfile = "3.20"
 toml = "0.9"
 walkdir = "2.5"
 
 [dev-dependencies]
-tempfile = "3.20"

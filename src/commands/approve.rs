@@ -1,4 +1,5 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
@@ -9,7 +10,7 @@ use serde::Serialize;
 use crate::cli::ApproveArgs;
 use crate::config::{Config, GateKind};
 
-use super::print_json;
+use super::{print_json, validate_run_slug};
 
 #[derive(Debug, Serialize)]
 struct ApprovalReport {
@@ -22,6 +23,7 @@ struct ApprovalReport {
 }
 
 pub fn run(project_root: &Path, args: ApproveArgs, json: bool) -> Result<()> {
+    validate_run_slug(&args.run)?;
     let config = Config::load(project_root)?;
     let Some(gate) = config.gate(&args.gate) else {
         bail!(
@@ -38,17 +40,26 @@ pub fn run(project_root: &Path, args: ApproveArgs, json: bool) -> Result<()> {
         bail!("no run folder at .base/runs/{}", args.run);
     }
 
-    let relative = gate.approval_path();
-    let artifact = run_folder.join(&relative);
-    if artifact.exists() {
+    let request_relative = gate.request_path();
+    let request = run_folder.join(&request_relative);
+    if !request.is_file() {
         bail!(
-            "approval record already exists at .base/runs/{}/{relative}; verdicts are immutable — a changed decision belongs in a new run",
-            args.run
+            "gate `{}` has no pending request at .base/runs/{}/{}; verdicts cannot be recorded before the stage requests one",
+            args.gate,
+            args.run,
+            request_relative
         );
     }
 
+    let relative = gate.approval_path();
+    let artifact = run_folder.join(&relative);
+
     let verdict = if args.deny { "denied" } else { "approved" };
     let by = args.by.clone().unwrap_or_else(|| decider(project_root));
+    validate_field(&by, "approval decider")?;
+    if let Some(note) = &args.note {
+        validate_field(note, "approval note")?;
+    }
     let at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
 
     let mut record = format!(
@@ -63,7 +74,26 @@ pub fn run(project_root: &Path, args: ApproveArgs, json: bool) -> Result<()> {
         fs::create_dir_all(parent)
             .with_context(|| format!("cannot create {}", parent.display()))?;
     }
-    fs::write(&artifact, record).with_context(|| format!("cannot write {}", artifact.display()))?;
+    let mut file = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&artifact)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            bail!(
+                "approval record already exists at .base/runs/{}/{relative}; verdicts are immutable — a changed decision belongs in a new run",
+                args.run
+            );
+        }
+        Err(error) => {
+            return Err(error).with_context(|| format!("cannot reserve {}", artifact.display()));
+        }
+    };
+    file.write_all(record.as_bytes())
+        .with_context(|| format!("cannot write {}", artifact.display()))?;
+    file.sync_all()
+        .with_context(|| format!("cannot sync {}", artifact.display()))?;
 
     let report = ApprovalReport {
         path: format!(".base/runs/{}/{relative}", args.run),
@@ -80,6 +110,13 @@ pub fn run(project_root: &Path, args: ApproveArgs, json: bool) -> Result<()> {
         "recorded {} for gate `{}` on run {} at {}",
         report.verdict, report.gate, report.run, report.path
     );
+    Ok(())
+}
+
+fn validate_field(value: &str, kind: &str) -> Result<()> {
+    if value.trim().is_empty() || value.contains(['\r', '\n']) {
+        bail!("{kind} must be one non-empty line");
+    }
     Ok(())
 }
 

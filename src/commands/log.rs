@@ -8,7 +8,7 @@ use walkdir::WalkDir;
 
 use crate::cli::LogArgs;
 
-use super::print_json;
+use super::{print_json, validate_run_slug};
 
 #[derive(Debug, Serialize)]
 struct RunReport {
@@ -52,9 +52,7 @@ fn list(history: Vec<Value>, json: bool) -> Result<()> {
 }
 
 fn show(project_root: &Path, slug: &str, history: Vec<Value>, json: bool) -> Result<()> {
-    if slug.contains('/') || slug.contains('\\') || slug == "." || slug == ".." {
-        bail!("invalid run slug `{slug}`");
-    }
+    validate_run_slug(slug)?;
     let runs_root = project_root.join(".base/runs");
     let exact = runs_root.join(slug);
     let directory = if exact.is_dir() {

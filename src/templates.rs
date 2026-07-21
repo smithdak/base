@@ -2,6 +2,20 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 
+pub fn global_files() -> BTreeMap<String, String> {
+    let mut files = canon_files("");
+    files.extend(global_pack_files());
+    files
+}
+
+pub fn global_pack_files() -> BTreeMap<String, String> {
+    let mut files = BTreeMap::new();
+    for (relative, content) in software_delivery_pack_files() {
+        files.insert(format!("canon/packs/software-delivery/{relative}"), content);
+    }
+    files
+}
+
 pub fn canon_files(prefix: &str) -> BTreeMap<String, String> {
     let mut files = BTreeMap::new();
     files.insert(
@@ -136,12 +150,23 @@ the current task.
         path(prefix, "canon/knowledge/adapter-surfaces.md"),
         r#"# Harness pipeline surfaces
 
-Compile reusable repository workflows to skills for Claude Code (`.claude/skills/`) and Codex
-(`.agents/skills/`). Codex custom prompts are deprecated and user-scoped. GitHub Copilot repository
-prompt files remain useful but are IDE-dependent and public preview.
+Compile repository skills to Claude Code (`.claude/skills/`) and the open Agent Skills surface
+(`.agents/skills/`) shared by Codex and GitHub Copilot. Compile agents to each target's native
+project surface. Pipelines use a Claude skill, a shared Codex/Copilot Agent Skill, and a separate VS
+Code prompt-file profile for Copilot.
 
-Report gate fidelity per gate and target. A declared policy is not mechanically enforced until the
-adapter emits and verifies a native binding for that exact policy.
+All three targets have repository lifecycle hooks for equivalent events. Codex project hooks
+require explicit trust; Codex session-end remains assisted because `Stop` is turn-scoped. Hook
+execution requires a `requires-base`-compatible binary in the target environment.
+
+Report fidelity, product profile, scope, and runtime/trust prerequisites per target. `native-hook`
+means a documented lifecycle binding, not an authorization boundary; `hybrid-hook` means pending
+approval is mechanical while denial routing remains behavioral; `partial-hook` means the native
+binding does not cover the complete declared tool domain. Allowlisted target-specific migration
+input lives under `.base/native/` and is composed into hash-owned output. Protect default branches
+at the Git server. Copilot sanitizes the current built-in GitHub MCP namespace to
+`github-mcp-server-*`; map it explicitly, and report arbitrary unmapped Copilot MCP matchers as
+`partial-hook` rather than guessing.
 "#
         .to_owned(),
     );
@@ -155,9 +180,44 @@ pub fn project_files() -> BTreeMap<String, String> {
         toml::to_string_pretty(&Config::default()).expect("default config serializes"),
     );
     files.insert(".base/history.jsonl".to_owned(), String::new());
+    files.insert(".base/.gitignore".to_owned(), ".lock\n".to_owned());
     files.insert(".base/work/.gitkeep".to_owned(), String::new());
     files.insert(".base/runs/.gitkeep".to_owned(), String::new());
     files.insert(".base/knowledge/.gitkeep".to_owned(), String::new());
+    files.insert(".base/packs/.gitkeep".to_owned(), String::new());
+    files.insert(".base/native/.gitkeep".to_owned(), String::new());
+    files.insert(".base/state/.gitkeep".to_owned(), String::new());
+    files
+}
+
+fn software_delivery_pack_files() -> BTreeMap<String, String> {
+    let mut files = BTreeMap::new();
+    macro_rules! asset {
+        ($path:literal) => {
+            files.insert(
+                $path.to_owned(),
+                include_str!(concat!("../assets/packs/software-delivery/", $path)).to_owned(),
+            );
+        };
+    }
+    asset!("pack.md");
+    asset!("rules/delivery-discipline.md");
+    asset!("agents/delivery-analyst.md");
+    asset!("agents/delivery-implementer.md");
+    asset!("agents/delivery-auditor.md");
+    asset!("skills/pickup/SKILL.md");
+    asset!("skills/durable-handoff/SKILL.md");
+    asset!("skills/evidence-review/SKILL.md");
+    asset!("skills/decision-record/SKILL.md");
+    asset!("policies/session-context.md");
+    asset!("verifiers/delivery-foundation.md");
+    asset!("pipelines/stages/delivery-discover.md");
+    asset!("pipelines/stages/delivery-plan.md");
+    asset!("pipelines/stages/delivery-implement.md");
+    asset!("pipelines/stages/delivery-prove.md");
+    asset!("pipelines/stages/delivery-review.md");
+    asset!("pipelines/delivery.md");
+    asset!("knowledge/operating-model.md");
     files
 }
 

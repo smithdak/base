@@ -13,7 +13,7 @@ the mechanism must run end to end at least once with its real output captured un
 An automation that has never run is a draft, not a deliverable.
 
 Use the task supplied alongside this explicitly invoked skill.
-Record `harness` as `codex` in the run ledger.
+Record the actual runtime, `codex` or `copilot`, as `harness` in the run ledger.
 
 ## 1. Intake
 

@@ -282,17 +282,157 @@ to. Newest entries at the bottom.
   path (declarations stay data — a path, a flag; no conditions, per D-008). Protocol: the agent
   writes `<satisfied-by>.request` describing what needs approval and stops; the human records
   the verdict from outside the session via `base approve <run> <gate> [--deny]`, which writes an
-  immutable stamped record (who, when, verdict, note). The Claude adapter compiles hooks that
-  deny all mutating tools (Bash, Edit/Write/NotebookEdit, GitHub MCP) while any request lacks
-  its response — which also blocks the agent from self-approving or forging the record. Either
-  verdict lifts the mechanical block; prose routes `denied` to `record aborted`. Standing
-  directives satisfy a gate only as recorded approvals citing their source (`--note`). Matrix:
-  plan-approval becomes `enforced` on Claude, stays `assisted` on Codex, `advisory` on Copilot.
+  create-new stamped record (who, when, verdict, note). All three adapters compile hooks that
+  deny covered mutating tools while any configured request lacks its response, deny ordinary
+  agent writes to configured response paths, and reject direct agent invocation of `base approve`.
+  Either verdict lifts the pending mechanical block; generated
+  pipeline contracts route `denied` to `record aborted`. Standing directives satisfy a gate only
+  as recorded approvals citing their source (`--note`). Because post-denial routing is behavioral,
+  artifact approval is reported as `hybrid-hook` on all three targets, subject to their runtime and
+  trust prerequisites.
 - **Accepted trade-offs:** any pending request blocks the whole session's mutating tools, not
   just the gated run (one user, v1 — recorded, not solved); the gate scan fails open on IO
   errors so a filesystem oddity cannot brick a session (the push denial keeps fail-closed); in
   the unlikely config with artifact gates but no default-branch denial gate, the push check
-  still rides along in the shared hook binary — over-enforcement accepted over new machinery.
+  still rides along in the shared hook binary — over-enforcement accepted over new machinery. The
+  record is not authenticated or filesystem-immutable: a same-account process can bypass hooks or
+  forge bytes, and `by` is self-asserted. External authority/signing is required for that threat
+  model.
 - **Commits us to:** gate satisfaction never living only in conversation; approval records
-  being immutable (a changed decision is a new run, not an edited file); the enforcement matrix
-  reporting the upgrade honestly per target.
+  being create-new through the supported CLI (a changed decision is a new run, not an edited file);
+  the enforcement matrix reporting the guardrail honestly per target.
+
+## D-022: Base is the operating-model core; packs are repo-vendored composition layers
+
+- **Status:** accepted (2026-07-20)
+- **Context:** The rezidnt `.claude/` harness proved a richer operating discipline than Base's
+  walking skeleton: specialist roles, session handoff, lifecycle hooks, maker/checker separation,
+  and typed verification. Rebuilding those capabilities in a second harness would duplicate Base's
+  canon compiler, adapters, state, and drift controls. D-020's flat copy into `.base/canon/` also
+  loses pack identity, order, provenance, and any safe upgrade path.
+- **Decision:** Base is the single vendor-neutral operating-model core. Adopted packs are copied
+  intact into `.base/packs/<id>/`, recorded in ordered `[[packs]]` config entries with semantic
+  version and per-file SHA-256 hashes, and loaded between the global library and `.base/canon/`.
+  Later packs override earlier packs by canonical ID; the project overlay wins last. Every byte
+  affecting generated output remains in the repository. `base adopt <pack> --upgrade` replaces an
+  adopted pack only when its installed files still match their recorded hashes and the library
+  supplies a strictly newer version; a changed same-version pack is rejected as mutable.
+- **Amends:** D-001's one-user scope and D-020's copy-flattened, zero-core pack model. Team reuse is
+  now in scope through files and git; hosted collaboration, registries, and services remain out.
+- **Commits us to:** deterministic composition order, visible provenance, immutable pack versions,
+  local-edit protection, and project overrides that are separate from managed pack bytes.
+- **Failure posture:** Config replacement is atomic and pack upgrade retains a backup, but replacing
+  a multi-file pack plus its config record is not a crash-atomic database transaction. A crash-time
+  mismatch is detected as pack drift and may require manual recovery from the retained backup.
+
+## D-023: Skills, agents, policies, and verifiers are first-class canon
+
+- **Status:** accepted (2026-07-20)
+- **Context:** As verified against official product documentation on 2026-07-20, Claude Code,
+  Codex, and Copilot all discover repository Agent Skills; all three have project-scoped custom
+  agent surfaces; all three have repository lifecycle hooks for equivalent events. Base's July 14 mapping
+  treated Codex/Copilot agents as advisory and Copilot skills as prompt files, which is already
+  stale. Rezidnt's useful structure cannot be expressed honestly as only rules and pipelines.
+- **Decision:** Add canonical `skills/`, `policies/`, and `verifiers/` alongside native agent
+  rendering. Skills are complete directories (a required `SKILL.md` plus optional resources), not
+  flattened prose. Policies declare lifecycle event, portable full-name tool globs, mode, command
+  argv, timeout, and
+  failure posture; Base normalizes hook protocol differences. Verifiers declare direct argv checks
+  with timeouts and typed `pass | fail | inconclusive` results. Feature fidelity is reported per
+  definition and target. Codex `session-end` compiles to explicit assisted prose because its
+  documented `Stop` event is turn-scoped rather than equivalent.
+- **Amends:** D-008's verification deferral and D-019's statement that skills can only arrive as
+  user-scoped harness plugins. Skillsmith remains a separate authoring/distribution product; Base
+  now owns repository operating-model skills that must be reproducible with the project.
+- **Commits us to:** open Agent Skills as the shared skill substrate, isolated adapter mappings,
+  verified-as-of notes for volatile surfaces, and collision checks wherever canon kinds share a
+  target path.
+
+## D-024: Cross-session continuity and verification evidence use typed file contracts
+
+- **Status:** accepted (2026-07-20)
+- **Context:** Rezidnt's tracked current slice and handoff file make a fresh session productive,
+  while its verifier gauntlet refuses to coerce missing proof into success. Base reserved run
+  evidence but did not own a verifier or a standard continuity surface.
+- **Decision:** Project continuity lives under `.base/state/`: `current-work` points at an existing
+  work item and optional `handoff.md` carries matching `work-item` plus an existing `run` slug in
+  frontmatter, the state of play, and a non-empty next action. Switching work rejects a stale
+  handoff; clearing state removes both files. `base state` validates and exposes this context to
+  humans and lifecycle hooks. `base
+  verify <suite>` executes canonical direct-argv
+  checks; missing executables and timeouts are `inconclusive`, non-zero exits are `fail`, and only
+  all-zero completion is `pass`. `--run` records a timestamped JSON report under that run's
+  `evidence/verifications/` directory.
+- **Commits us to:** never inferring success from absent execution, retaining exact argv plus stream
+  byte counts and hashes for every recorded check, retaining raw output only after explicit
+  per-check opt-in, and keeping continuity portable across harnesses.
+
+## D-025: Adapter fidelity is profile-specific and hook-native, not a security claim
+
+- **Status:** accepted (2026-07-20)
+- **Context:** A falsification pass against current official product documentation found that Codex
+  now discovers trusted repository hooks at `.codex/hooks.json`; Copilot's Agent Skills and
+  `.github/prompts` files belong to different execution profiles; and raw matcher regex has
+  different anchoring semantics across targets. The earlier binary `enforced | assisted | advisory`
+  matrix also overstated what a repository hook can guarantee.
+- **Decision:** Emit native lifecycle hooks for Claude Code, Codex, and Copilot wherever lifecycle
+  events are equivalent. Codex project hooks require trust of the exact generated definition;
+  `session-end` remains assisted rather than being incorrectly mapped to turn `Stop`. Emit every
+  Codex/Copilot pipeline once as a neutral Agent Skill and additionally emit Copilot VS Code prompt
+  files as a separate profile. Replace pass-through regex with `match-tools` full-name globs compiled
+  to anchored regular expressions. `base check` reports `native`, `native-hook`, `partial-hook`,
+  `hybrid-hook`, `assisted`, or `advisory` together with profile, scope, and prerequisites. Codex
+  pre/post-tool policy coverage is `native-hook` only for the documented portable matcher subset;
+  broader or empty matchers are `partial-hook`. Built-in and canonical
+  fail-closed Codex/Copilot guards deny when Base hook protocol 1 is absent; fail-open policies skip.
+- **Adapter correction:** A live Copilot CLI 1.0.72 probe on 2026-07-20 showed that its built-in
+  GitHub MCP server exposes `github-mcp-server-*` tool names rather than Claude/Codex-style
+  `mcp__github__*` names. Base maps that known namespace explicitly and reports other Copilot MCP
+  matchers as `partial-hook` until their server-name mapping is known.
+- **Security boundary:** Hook guards are deterministic workflow controls, not authorization. The
+  default-branch guard covers common git/git.exe refspecs and GitHub MCP writes, but aliases,
+  wrappers, disabled/untrusted hooks, host timeouts, and concurrent local mutation remain outside
+  its guarantee. Server-side branch protection is authoritative. Stage approval is `hybrid-hook`:
+  pending mutation is blocked, while denial-to-abort routing remains behavioral.
+- **Commits us to:** re-verifying volatile product surfaces before adapter changes, never conflating
+  Copilot VS Code/CLI/cloud modalities, surfacing bootstrap and trust prerequisites, and describing
+  repository enforcement no more strongly than its mechanism supports.
+
+## D-026: Team-safe local state and native coexistence are explicit inputs
+
+- **Status:** accepted (2026-07-20)
+- **Context:** A reusable core must work in established repositories and on concurrent branches.
+  Whole-file target ownership otherwise forces teams to discard unrelated native configuration,
+  while max-plus-one work IDs can collide without a Git conflict.
+- **Decision:** Existing target-specific instruction/configuration may be moved into an allowlisted
+  `.base/native/` mirror and composed into manifest-owned output. Markdown appends; JSON recursively
+  merges with Base winning scalar/type conflicts. New work IDs atomically reserve
+  `.base/work/.ids/W-NNNN`, and the CLI exposes the reservation path as part of the item. Teams
+  commit the entire work change; the common reservation filename forces duplicate cross-branch IDs
+  into Git conflict. `base check` rejects duplicate metadata IDs and mismatched reservations.
+  Handoffs bind both `work-item` and `run`, so pickup never guesses the active attempt.
+  Base CLI operations also coordinate through `.base/.lock`: shared for reads/verifiers and
+  exclusive for config, pack, generated output, work, approval, and state mutation. Adoption holds
+  a shared global-library lock while its project mutation lock is active.
+- **Rejected alternative:** keep a separate Rezidnt-style template repository and let every project
+  reconcile native files manually. That duplicates canon, adapters, state, and drift semantics—the
+  exact split Base is intended to eliminate.
+- **Commits us to:** project-specific portable behavior living in canon, target-specific migration
+  input remaining visible in git, and team-collision detection being mechanical rather than a naming
+  convention.
+
+## D-027: Generated text identity is line-ending canonical
+
+- **Status:** accepted (2026-07-20)
+- **Context:** Git can materialize the same tracked text as LF or CRLF according to repository and
+  client settings. Raw-byte manifest checks therefore report false drift in an otherwise equivalent
+  Windows checkout, and Base cannot safely replace an established repository's root
+  `.gitattributes`.
+- **Decision:** Hash rendered and existing valid UTF-8 generated content after CRLF-to-LF
+  normalization. Keep invalid/non-UTF-8 resources byte-exact. Sync still writes the renderer's
+  bytes; normalization defines generated identity only and does not mutate project Git policy.
+- **Rejected alternative:** scaffold or append root `.gitattributes` rules for every generated path.
+  That creates ownership and merge conflicts in established repositories and still depends on Git
+  configuration being applied before verification.
+- **Commits us to:** testing CRLF equivalence and semantic drift separately, and never normalizing
+  verifier evidence streams or immutable pack inputs under this rule.

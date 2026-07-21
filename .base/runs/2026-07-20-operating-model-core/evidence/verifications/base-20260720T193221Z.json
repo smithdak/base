@@ -1,0 +1,82 @@
+{
+  "suite": "base",
+  "description": "Full source, lint, test, specification, and generated-surface contract for Base.",
+  "verdict": "pass",
+  "started_at": "2026-07-20T19:32:17.398Z",
+  "finished_at": "2026-07-20T19:32:21.268Z",
+  "checks": [
+    {
+      "id": "format",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 523,
+      "stdout": "",
+      "stderr": "",
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 851,
+      "stdout": "",
+      "stderr": "    Checking base-cli v0.2.0 (D:\\github\\base)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.58s\n",
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "tests",
+      "argv": [
+        "cargo",
+        "test",
+        "--all-targets",
+        "--all-features"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 2180,
+      "stdout": "\nrunning 24 tests\ntest canon::tests::frontmatter_is_split ... ok\ntest canon::tests::windows_frontmatter_is_split ... ok\ntest canon::tests::missing_frontmatter_is_rejected ... ok\ntest commands::hook::tests::catches_explicit_and_implicit_default_pushes ... ok\ntest commands::hook::tests::permits_explicit_feature_pushes ... ok\ntest commands::hook::tests::permits_quoted_text_mentioning_pushes ... ok\ntest commands::hook::tests::permits_github_mcp_review_path ... ok\ntest commands::hook::tests::denies_github_mcp_writes_to_default_branch ... ok\ntest commands::work::tests::titles_become_safe_slugs ... ok\ntest config::tests::approval_paths_derive_mechanically ... ok\ntest commands::sync::tests::sha256_is_stable ... ok\ntest commands::work::tests::criteria_counts_only_the_acceptance_section ... ok\ntest commands::hook::tests::unparseable_input_fails_closed_on_words ... ok\ntest commands::hook::tests::catches_no_space_separators ... ok\ntest commands::work::tests::board_cells_truncate_multibyte_text_by_character ... ok\ntest config::tests::identifiers_are_conservative ... ok\ntest render::tests::enforcement_is_honest_per_cell ... ok\ntest render::tests::shell_literals_do_not_interpolate ... ok\ntest config::tests::satisfied_by_is_constrained_to_stage_gates_and_safe_paths ... ok\ntest render::tests::title_formats_ids ... ok\ntest config::tests::default_config_round_trips ... ok\ntest commands::hook::tests::projects_without_runs_do_not_scan ... ok\ntest canon::tests::duplicate_ids_in_one_layer_are_rejected ... ok\ntest commands::hook::tests::pending_request_denies_until_answered ... ok\n\ntest result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 29 tests\ntest adopt_requires_initialized_project ... ok\ntest global_init_installs_the_bundled_software_delivery_library_pack ... ok\ntest adopt_unknown_pack_lists_available ... ok\ntest project_pipeline_cannot_reference_global_only_stage ... ok\ntest work_new_sequences_ids_past_stray_folders ... ok\ntest log_reads_aborted_runs ... ok\ntest check_downgrades_claude_hook_enforcement_when_base_is_off_path ... ok\ntest guard_policy_failure_posture_is_explicit ... ok\ntest installed_pack_drift_is_rejected_before_composition ... ok\ntest skills_agents_and_policies_compile_to_native_target_surfaces ... ok\ntest work_ignores_attachments_and_strays ... ok\ntest init_preserves_config_and_history ... ok\ntest project_canon_overrides_global_canon_by_id ... ok\ntest work_new_scaffolds_folder_item ... ok\ntest adopt_upgrade_requires_a_new_immutable_version ... ok\ntest work_move_requires_acceptance_criteria ... ok\ntest lifecycle_policy_wrapper_translates_context_for_each_hook_protocol ... ok\ntest adopt_vendors_versioned_pack_and_composes_it ... ok\ntest state_points_to_real_work_and_validates_the_handoff_contract ... ok\ntest global_only_knowledge_stays_out_of_generated_output ... ok\ntest global_only_definitions_stay_out_of_generated_output ... ok\ntest verifier_distinguishes_pass_fail_and_inconclusive_and_retains_evidence ... ok\ntest work_board_renders_columns ... ok\ntest work_list_validates_status_filter ... ok\ntest later_packs_win_and_the_project_overlay_wins_last ... ok\ntest removing_a_gate_removes_its_generated_bindings ... ok\ntest work_move_transitions_and_verdict_rules ... ok\ntest approve_writes_an_immutable_stamped_verdict ... ok\ntest walking_skeleton_syncs_and_detects_drift ... ok\n\ntest result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.72s\n\n\nrunning 1 test\ntest spec_section_7_matches_the_clap_definition ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n",
+      "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s\n     Running unittests src\\lib.rs (target\\debug\\deps\\base_cli-0091de9f02a72433.exe)\n     Running unittests src\\main.rs (target\\debug\\deps\\base-e18ba304926912b7.exe)\n     Running tests\\cli.rs (target\\debug\\deps\\cli-6e18a944da117100.exe)\n     Running tests\\spec.rs (target\\debug\\deps\\spec-c65b0ae313fb85cb.exe)\n",
+      "output_truncated": false,
+      "note": null
+    },
+    {
+      "id": "generated-surfaces",
+      "argv": [
+        "cargo",
+        "run",
+        "--quiet",
+        "--",
+        "sync",
+        "--check"
+      ],
+      "cwd": ".",
+      "verdict": "pass",
+      "exit_code": 0,
+      "duration_ms": 313,
+      "stdout": "sync check passed (47 generated files)\n",
+      "stderr": "",
+      "output_truncated": false,
+      "note": null
+    }
+  ],
+  "evidence_path": ".base/runs/2026-07-20-operating-model-core/evidence/verifications/base-20260720T193221Z.json"
+}

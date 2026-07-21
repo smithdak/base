@@ -2,6 +2,10 @@ pub mod canon;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod integrity;
+pub mod lock;
+pub mod pack;
+pub(crate) mod process;
 pub mod render;
 pub mod templates;
 

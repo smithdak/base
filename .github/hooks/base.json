@@ -1,0 +1,30 @@
+{
+  "disableAllHooks": false,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "bash": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'pre-tool' '--target' 'copilot' '--default-branch' 'main' || printf '%s\\n' '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}'; else printf '%s\\n' '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}'; fi",
+        "matcher": "^(?:Bash|Edit|Write)$",
+        "powershell": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'pre-tool' '--target' 'copilot' '--default-branch' 'main'; if ($LASTEXITCODE -ne 0) { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' } } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' } } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' }",
+        "timeoutSec": 10,
+        "type": "command"
+      },
+      {
+        "bash": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'pre-tool' '--target' 'copilot' '--default-branch' 'main' || printf '%s\\n' '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}'; else printf '%s\\n' '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}'; fi",
+        "matcher": "^(?:github-mcp-server-.*)$",
+        "powershell": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'pre-tool' '--target' 'copilot' '--default-branch' 'main'; if ($LASTEXITCODE -ne 0) { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' } } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' } } else { Write-Output '{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}' }",
+        "timeoutSec": 10,
+        "type": "command"
+      }
+    ],
+    "SessionStart": [
+      {
+        "bash": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'policy' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'policy' 'session-context' '--target' 'copilot' || true; fi",
+        "powershell": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'policy' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'policy' 'session-context' '--target' 'copilot' } }; exit 0",
+        "timeoutSec": 12,
+        "type": "command"
+      }
+    ]
+  },
+  "version": 1
+}

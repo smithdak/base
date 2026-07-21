@@ -1,0 +1,56 @@
+{
+  "description": "Generated Base lifecycle policies for this repository.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main' || printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; else printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; fi",
+            "commandWindows": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main'; if ($LASTEXITCODE -ne 0) { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' }",
+            "statusMessage": "Running Base repository policy",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(?:Bash)$"
+      },
+      {
+        "hooks": [
+          {
+            "command": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main' || printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; else printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; fi",
+            "commandWindows": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main'; if ($LASTEXITCODE -ne 0) { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' }",
+            "statusMessage": "Running Base repository policy",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(?:apply_patch)$"
+      },
+      {
+        "hooks": [
+          {
+            "command": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main' || printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; else printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}'; fi",
+            "commandWindows": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'pre-tool' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'pre-tool' '--target' 'codex' '--default-branch' 'main'; if ($LASTEXITCODE -ne 0) { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' } } else { Write-Output '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Base hook runtime is missing or incompatible\"}}' }",
+            "statusMessage": "Running Base repository policy",
+            "timeout": 10,
+            "type": "command"
+          }
+        ],
+        "matcher": "^(?:mcp__github__.*)$"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "if command -v base >/dev/null 2>&1 && base '__hook' 'capabilities' '--require-feature' 'policy' '--require' '>=0.2.0, <0.3.0' >/dev/null 2>&1; then base '__hook' 'policy' 'session-context' '--target' 'codex' || true; fi",
+            "commandWindows": "$b = Get-Command base -ErrorAction SilentlyContinue; if ($b) { & base '__hook' 'capabilities' '--require-feature' 'policy' '--require' '>=0.2.0, <0.3.0' *> $null; if ($LASTEXITCODE -eq 0) { & base '__hook' 'policy' 'session-context' '--target' 'codex' } }; exit 0",
+            "statusMessage": "Running Base repository policy",
+            "timeout": 12,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
