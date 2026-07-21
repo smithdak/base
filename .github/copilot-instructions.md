@@ -54,6 +54,7 @@ Native GitHub Copilot custom agents are available under `.github/agents/`.
 - Agent Skill `$build` or VS Code prompt `.github/prompts/build.prompt.md` — Plan, approve, implement, verify, and record a software change
 - Agent Skill `$delivery` or VS Code prompt `.github/prompts/delivery.prompt.md` — Discover, approve, implement, prove, review, and record a software change
 - Agent Skill `$fix` or VS Code prompt `.github/prompts/fix.prompt.md` — Diagnose, plan, approve, repair, and prove a defect fix
+- Agent Skill `$migrate` or VS Code prompt `.github/prompts/migrate.prompt.md` — Ingest another agent system and author an improved, adoptable base pack
 - Agent Skill `$research` or VS Code prompt `.github/prompts/research.prompt.md` — Investigate a question from real sources and land cited findings
 - Agent Skill `$writing` or VS Code prompt `.github/prompts/writing.prompt.md` — Outline, approve, draft, and deliver a written artifact
 
@@ -79,4 +80,5 @@ Native GitHub Copilot custom agents are available under `.github/agents/`.
 - Load canonical knowledge on demand from:
   - `.base/canon/knowledge/INDEX.md`
   - `.base/canon/knowledge/adapter-surfaces.md`
+  - `.base/canon/knowledge/migration-mapping.md`
   - `.base/packs/software-delivery/knowledge/operating-model.md`

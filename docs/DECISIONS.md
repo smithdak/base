@@ -436,3 +436,31 @@ to. Newest entries at the bottom.
   configuration being applied before verification.
 - **Commits us to:** testing CRLF equivalence and semantic drift separately, and never normalizing
   verifier evidence streams or immutable pack inputs under this rule.
+
+## D-028: Ingesting another system is deterministic modeling plus an authored pack, never a transcode
+
+- **Status:** accepted (2026-07-21)
+- **Context:** Clients arrive with an existing agent system (agents, skills, slash commands, hooks,
+  workflows) and want it migrated into Base as a reusable pack that both reproduces the old behavior
+  and improves it by adding Base's operating model. Base already compiles canon → harness surfaces;
+  the missing capability is the inverse plus a way to author the resulting pack. A naive byte
+  transcoder would violate D-019/D-023 (promotion into canon is an authored rewrite, not a copy of
+  vendor bytes) and D-003 (canon is vendor-neutral). Verified against code.claude.com/docs on
+  2026-07-21: Claude Code plugins (`.claude-plugin/plugin.json`) now bundle a system into one
+  distributable — near 1:1 with a Base pack — while subagents (~16 frontmatter fields) and hooks
+  (~30 events, 5 types) have outgrown what vendor-neutral canon can represent.
+- **Decision:** Split ingestion along Base's existing seam (D-006). A deterministic Rust reader
+  (`base ingest <path>`) models a Claude Code source — plugin manifest first, else loose `.claude/` —
+  into a portable inventory plus a canon mapping/fidelity report (`native | partial | manual |
+  out-of-canon`), surfacing every artifact, every Claude-only knob, and every unrecognized file so
+  nothing is silently dropped. `base ingest` never writes canon. Pack authoring is a separate,
+  agent-driven, gated step; `base pack new` scaffolds a library skeleton and `base pack check`
+  validates a drafted pack's manifest, paths, and canonical frontmatter before adoption. MCP
+  registrations stay out of canon (D-015). Claude Code source formats are volatile: the reader
+  records a verified-as-of date and re-verifies before the mapping changes (D-025).
+- **Rejected alternative:** a mechanical transcoder foreign→canon. It smuggles vendor shape into
+  vendor-neutral canon, reproduces the source's flaws instead of improving on them, and makes the
+  foreign bytes the sole source of committed canon — exactly what D-018/D-019 forbid.
+- **Commits us to:** ingestion that reports rather than writes canon; honest per-artifact fidelity
+  over a false sense of completeness; and pack promotion always being an authored rewrite, proven by
+  `base pack check` and adoption before it is trusted.

@@ -81,6 +81,10 @@ pub enum Command {
     Check,
     /// Copy a global-library pack into the project canon.
     Adopt(AdoptArgs),
+    /// Inverse-read another system's harness surfaces into a portable inventory.
+    Ingest(IngestArgs),
+    /// Scaffold or validate a canon pack.
+    Pack(PackArgs),
     /// Manage project work items.
     Work(WorkArgs),
     /// Inspect run history or one run folder.
@@ -104,6 +108,36 @@ pub struct AdoptArgs {
     /// Replace an adopted pack with a strictly newer, immutable library version.
     #[arg(long)]
     pub upgrade: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct IngestArgs {
+    /// Path to the source system's root (a Claude Code project or plugin).
+    pub path: PathBuf,
+
+    /// Record the inventory and mapping report under this existing run folder.
+    #[arg(long, value_name = "RUN")]
+    pub run: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct PackArgs {
+    #[command(subcommand)]
+    pub command: PackCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PackCommand {
+    /// Scaffold an empty library pack skeleton under BASE_HOME/canon/packs/.
+    New {
+        /// Pack ID (folder name under BASE_HOME/canon/packs/).
+        id: String,
+    },
+    /// Validate a drafted pack's manifest, paths, and canonical frontmatter before adoption.
+    Check {
+        /// Path to the pack root (the directory containing pack.md).
+        path: PathBuf,
+    },
 }
 
 #[derive(Debug, Args)]
