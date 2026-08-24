@@ -2034,7 +2034,9 @@ fn ingest_understands_a_messy_system_without_flooding() {
     for n in ["injection", "crypto", "ssrf"] {
         seed_file(
             &src.join(format!(".claude/agents/security-{n}.md")),
-            &format!("---\nname: security-{n}\ndescription: Scan {n}.\ntools: Read, Grep, Glob\n---\n\nScan.\n"),
+            &format!(
+                "---\nname: security-{n}\ndescription: Scan {n}.\ntools: Read, Grep, Glob\n---\n\nScan.\n"
+            ),
         );
     }
     // A big allowlist that must NOT flood the definitions.
@@ -2046,7 +2048,10 @@ fn ingest_understands_a_messy_system_without_flooding() {
             allow.join(",")
         ),
     );
-    seed_file(&src.join(".claude/memory/glossary.md"), "# Terms\n\nDA = ...\n");
+    seed_file(
+        &src.join(".claude/memory/glossary.md"),
+        "# Terms\n\nDA = ...\n",
+    );
     seed_file(&src.join(".claude/ado/cache.json"), "{}\n");
     seed_file(&src.join(".claude/tools/sync.ps1"), "echo hi\n");
 
@@ -2071,16 +2076,10 @@ fn ingest_understands_a_messy_system_without_flooding() {
     );
 
     // Over-fragmentation surfaces as a consolidation signal.
-    assert!(
-        report["clusters"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| {
-                let l = c["label"].as_str().unwrap();
-                l.starts_with("security-") || l.starts_with("shared-tools")
-            })
-    );
+    assert!(report["clusters"].as_array().unwrap().iter().any(|c| {
+        let l = c["label"].as_str().unwrap();
+        l.starts_with("security-") || l.starts_with("shared-tools")
+    }));
 
     // Bespoke dirs are classified by content type.
     let cat = |p: &str| {
@@ -2096,17 +2095,31 @@ fn ingest_understands_a_messy_system_without_flooding() {
     assert_eq!(cat(".claude/tools").as_deref(), Some("tooling"));
 
     // Retained as run evidence with --run.
-    success(project.path(), home.path(), &["work", "new", "Migrate legacy"]);
+    success(
+        project.path(),
+        home.path(),
+        &["work", "new", "Migrate legacy"],
+    );
     fs::create_dir_all(project.path().join(".base/runs/demo-run")).unwrap();
     success(
         project.path(),
         home.path(),
         &["ingest", src.to_str().unwrap(), "--run", "demo-run"],
     );
-    let evidence = project.path().join(".base/runs/demo-run/evidence/migration");
+    let evidence = project
+        .path()
+        .join(".base/runs/demo-run/evidence/migration");
     let entries: Vec<_> = fs::read_dir(&evidence).unwrap().flatten().collect();
-    assert!(entries.iter().any(|e| e.path().extension().is_some_and(|x| x == "json")));
-    assert!(entries.iter().any(|e| e.path().extension().is_some_and(|x| x == "md")));
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.path().extension().is_some_and(|x| x == "json"))
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|e| e.path().extension().is_some_and(|x| x == "md"))
+    );
 }
 
 #[test]
@@ -2136,7 +2149,10 @@ fn ingest_detects_a_plugin_manifest_as_the_pack_source() {
     let defs = report["definitions"].as_array().unwrap();
     assert!(defs.iter().any(|a| a["target"] == "pack-manifest"));
     // Root-level members are discovered even without a `.claude/` prefix.
-    assert!(defs.iter().any(|a| a["name"] == "analyst" && a["target"] == "agent"));
+    assert!(
+        defs.iter()
+            .any(|a| a["name"] == "analyst" && a["target"] == "agent")
+    );
 }
 
 #[test]
@@ -2174,4 +2190,278 @@ fn pack_new_scaffolds_and_check_validates_before_adoption() {
         &["pack", "check", bad.to_str().unwrap()],
     );
     assert!(!output.status.success());
+}
+
+#[test]
+fn start_onboards_an_empty_directory_and_reruns_idempotently() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+
+    let first = success(project.path(), home.path(), &["--json", "start"]);
+    let report: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(report["global"]["action"], "initialized");
+    assert_eq!(report["pack"]["action"], "adopted");
+    assert_eq!(report["pack"]["pack"], "software-delivery");
+    assert!(report["sync"]["written"].as_u64().unwrap() > 0);
+
+    assert!(project.path().join(".base/base.toml").is_file());
+    assert!(project.path().join("CLAUDE.md").is_file());
+    assert!(project.path().join("AGENTS.md").is_file());
+    assert!(
+        project
+            .path()
+            .join(".github/copilot-instructions.md")
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(".base/packs/software-delivery/pack.md")
+            .is_file()
+    );
+    let config = fs::read_to_string(project.path().join(".base/base.toml")).unwrap();
+    assert!(config.contains("id = \"software-delivery\""));
+
+    let second = success(project.path(), home.path(), &["--json", "start"]);
+    let rerun: serde_json::Value = serde_json::from_slice(&second.stdout).unwrap();
+    assert_eq!(rerun["global"]["action"], "ready");
+    assert_eq!(rerun["project"]["created"], 0);
+    assert_eq!(rerun["pack"]["action"], "unchanged");
+    assert_eq!(rerun["sync"]["written"], 0);
+}
+
+#[test]
+fn start_skips_or_rejects_packs_as_requested() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+
+    let bare = success(
+        project.path(),
+        home.path(),
+        &["--json", "start", "--no-pack"],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&bare.stdout).unwrap();
+    assert_eq!(report["pack"]["action"], "skipped");
+    let config = fs::read_to_string(project.path().join(".base/base.toml")).unwrap();
+    assert!(!config.contains("[[packs]]"));
+
+    let other = TempDir::new().unwrap();
+    let unknown = base(
+        other.path(),
+        home.path(),
+        &["--json", "start", "--pack", "does-not-exist"],
+    );
+    assert!(!unknown.status.success());
+    let error: serde_json::Value = serde_json::from_slice(&unknown.stderr).unwrap();
+    assert!(error["error"].as_str().unwrap().contains("available packs"));
+}
+
+#[test]
+fn start_refuses_to_clobber_existing_harness_files() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    fs::write(project.path().join("CLAUDE.md"), "# My own notes\n").unwrap();
+
+    let output = base(project.path(), home.path(), &["start"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--migrate-native"), "{stderr}");
+    let preserved = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert_eq!(preserved, "# My own notes\n");
+}
+
+#[test]
+fn start_migrate_native_preserves_existing_surfaces_into_overlays() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    fs::write(
+        project.path().join("CLAUDE.md"),
+        "# Team Claude rules\n\nKeep tests green.\n",
+    )
+    .unwrap();
+    fs::write(
+        project.path().join("AGENTS.md"),
+        "Codex-specific guidance.\n",
+    )
+    .unwrap();
+
+    let output = success(
+        project.path(),
+        home.path(),
+        &["--json", "start", "--migrate-native"],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["native"]["action"], "migrated");
+    let moved: Vec<&str> = report["native"]["moved"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item.as_str().unwrap())
+        .collect();
+    assert!(moved.contains(&"CLAUDE.md"));
+    assert!(moved.contains(&"AGENTS.md"));
+
+    // The original bytes live only under .base/native/; the root file is
+    // regenerated by sync as the composed surface.
+    let overlay = fs::read_to_string(project.path().join(".base/native/CLAUDE.md")).unwrap();
+    assert_eq!(overlay, "# Team Claude rules\n\nKeep tests green.\n");
+
+    // The first sync composed both overlays into the generated surfaces.
+    let claude = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert!(claude.contains("generated by base sync"));
+    assert!(claude.contains("Keep tests green."));
+    let agents = fs::read_to_string(project.path().join("AGENTS.md")).unwrap();
+    assert!(agents.contains("Codex-specific guidance."));
+
+    // A plain rerun is now an idempotent no-op; nothing is foreign anymore.
+    let rerun = success(project.path(), home.path(), &["--json", "start"]);
+    let second: serde_json::Value = serde_json::from_slice(&rerun.stdout).unwrap();
+    assert_eq!(second["native"]["action"], "none");
+    assert_eq!(second["sync"]["written"], 0);
+}
+
+#[test]
+fn start_migrate_native_never_overwrites_an_existing_overlay() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    fs::write(project.path().join("CLAUDE.md"), "fresh content\n").unwrap();
+    seed_file(
+        &project.path().join(".base/native/CLAUDE.md"),
+        "curated overlay\n",
+    );
+
+    let output = base(project.path(), home.path(), &["start", "--migrate-native"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("merge"), "{stderr}");
+    let overlay = fs::read_to_string(project.path().join(".base/native/CLAUDE.md")).unwrap();
+    assert_eq!(overlay, "curated overlay\n");
+}
+
+#[test]
+fn start_force_replaces_foreign_surfaces() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    fs::write(project.path().join("CLAUDE.md"), "# My own notes\n").unwrap();
+
+    let output = success(project.path(), home.path(), &["--json", "start", "--force"]);
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["native"]["action"], "replaced");
+    let replaced = fs::read_to_string(project.path().join("CLAUDE.md")).unwrap();
+    assert!(replaced.contains("generated by base sync"));
+}
+
+#[test]
+fn canon_new_scaffolds_every_kind_and_check_passes_untouched() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    success(project.path(), home.path(), &["init", "--project"]);
+
+    for (kind, id) in [
+        ("rule", "no-secret-commits"),
+        ("agent", "documenter"),
+        ("skill", "release-notes"),
+        ("stage", "triage"),
+        ("pipeline", "hotfix"),
+        ("policy", "watch-edits"),
+        ("verifier", "smoke-suite"),
+        ("knowledge", "lessons"),
+    ] {
+        success(project.path(), home.path(), &["canon", "new", kind, id]);
+    }
+
+    assert!(
+        project
+            .path()
+            .join(".base/canon/rules/no-secret-commits.md")
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(".base/canon/skills/release-notes/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(".base/canon/pipelines/stages/triage.md")
+            .is_file()
+    );
+
+    // Every scaffold composes and renders without hand-editing.
+    success(project.path(), home.path(), &["check"]);
+    success(project.path(), home.path(), &["sync"]);
+    assert!(
+        project
+            .path()
+            .join(".claude/skills/release-notes/SKILL.md")
+            .is_file()
+    );
+    assert!(
+        project
+            .path()
+            .join(".claude/agents/documenter.md")
+            .is_file()
+    );
+    let hotfix = fs::read_to_string(project.path().join(".agents/skills/hotfix/SKILL.md")).unwrap();
+    assert!(hotfix.contains("generated by base sync"));
+
+    // The listing reports the new definitions with their source tier.
+    let listed = success(project.path(), home.path(), &["--json", "canon", "list"]);
+    let report: serde_json::Value = serde_json::from_slice(&listed.stdout).unwrap();
+    let rows = report["definitions"].as_array().unwrap();
+    assert!(rows.iter().any(|row| row["kind"] == "rule"
+        && row["id"] == "no-secret-commits"
+        && row["source"] == "project"));
+    assert!(rows.iter().any(|row| row["kind"] == "pipeline"
+        && row["id"] == "build"
+        && row["source"] == "project"));
+
+    // A duplicate scaffold is refused without touching the original.
+    let duplicate = base(
+        project.path(),
+        home.path(),
+        &["canon", "new", "rule", "no-secret-commits"],
+    );
+    assert!(!duplicate.status.success());
+    let bad_id = base(
+        project.path(),
+        home.path(),
+        &["canon", "new", "rule", "Bad_Id"],
+    );
+    assert!(!bad_id.status.success());
+}
+
+#[test]
+fn canon_new_pack_targets_the_global_library() {
+    let project = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+
+    success(project.path(), home.path(), &["pack", "new", "teamkit"]);
+    success(
+        project.path(),
+        home.path(),
+        &["canon", "new", "agent", "porter", "--pack", "teamkit"],
+    );
+    let drafted = home.path().join("canon/packs/teamkit/agents/porter.md");
+    assert!(drafted.is_file());
+
+    // The drafted pack validates, and adoption copies it verbatim.
+    success(
+        project.path(),
+        home.path(),
+        &[
+            "pack",
+            "check",
+            home.path().join("canon/packs/teamkit").to_str().unwrap(),
+        ],
+    );
+
+    let missing = base(
+        project.path(),
+        home.path(),
+        &["canon", "new", "rule", "orphan", "--pack", "ghost-pack"],
+    );
+    assert!(!missing.status.success());
 }

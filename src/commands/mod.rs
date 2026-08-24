@@ -1,11 +1,13 @@
 mod adopt;
 mod approve;
+mod canon;
 mod check;
 mod hook;
 mod ingest;
 mod init;
 mod log;
 mod pack;
+mod start;
 mod state;
 mod sync;
 mod verify;
@@ -29,6 +31,7 @@ pub fn run(cli: Cli) -> Result<()> {
     let start = selected_directory(cli.directory.as_deref())?;
     match cli.command {
         Command::Init(args) => init::run(&start, args, cli.json),
+        Command::Start(args) => start::run(&start, args, cli.json),
         Command::Sync(args) => {
             let root = find_project_root(&start)?;
             let mode = if args.check {
@@ -55,6 +58,22 @@ pub fn run(cli: Cli) -> Result<()> {
             ingest::run(&root, args, cli.json)
         }
         Command::Pack(args) => pack::run(args, cli.json),
+        Command::Canon(args) => {
+            let root = find_project_root(&start)?;
+            match &args.command {
+                crate::cli::CanonCommand::New { pack: Some(_), .. } => {
+                    canon::run(&root, args, cli.json)
+                }
+                crate::cli::CanonCommand::List { .. } => {
+                    let _lock = RepositoryLock::project(&root, LockMode::Shared)?;
+                    canon::run(&root, args, cli.json)
+                }
+                crate::cli::CanonCommand::New { pack: None, .. } => {
+                    let _lock = RepositoryLock::project(&root, LockMode::Exclusive)?;
+                    canon::run(&root, args, cli.json)
+                }
+            }
+        }
         Command::Work(args) => {
             let root = find_project_root(&start)?;
             let mode = match &args.command {

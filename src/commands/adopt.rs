@@ -142,6 +142,39 @@ pub fn run(project_root: &Path, args: AdoptArgs, json: bool) -> Result<()> {
     }
 }
 
+/// Adopt a pack without printing, or report the already-installed version.
+/// The caller holds the project-exclusive lock; the shared global-library
+/// lock is taken here, matching `run`'s ordering.
+pub(super) fn ensure(project_root: &Path, pack_id: &str) -> Result<(&'static str, String)> {
+    let mut config = Config::load(project_root)?;
+    if let Some(record) = config.packs.iter().find(|item| item.id == pack_id) {
+        return Ok(("unchanged", record.version.clone()));
+    }
+    let home = base_home()?;
+    let packs_root = home.join("canon").join("packs");
+    let _global_lock = RepositoryLock::global(&home, LockMode::Shared)?;
+    let source_root = pack::library_root(&home, pack_id);
+    if !source_root.is_dir() {
+        bail!(
+            "no pack `{}` in {}; {}",
+            pack_id,
+            packs_root.display(),
+            available_packs(&packs_root)
+        );
+    }
+    let incoming = pack::build_record(&source_root)?;
+    if incoming.id != pack_id {
+        bail!(
+            "pack folder `{}` contains manifest id `{}`",
+            pack_id,
+            incoming.id
+        );
+    }
+    let files = pack::collect_files(&source_root)?;
+    install_new(project_root, &mut config, &incoming, &files)?;
+    Ok(("adopted", incoming.version))
+}
+
 fn install_new(
     project_root: &Path,
     config: &mut Config,

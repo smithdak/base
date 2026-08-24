@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -21,6 +22,73 @@ struct InitReport {
     unchanged: Vec<String>,
 }
 
+#[derive(Debug, Default)]
+pub(super) struct ScaffoldReport {
+    pub created: Vec<String>,
+    pub replaced: Vec<String>,
+    pub unchanged: Vec<String>,
+}
+
+/// Write scaffold files under an already-held lock, refusing every collision
+/// before creating anything so a failed scaffold never leaves partial output.
+pub(super) fn scaffold(
+    root: &Path,
+    scope: &'static str,
+    files: BTreeMap<String, String>,
+    force: bool,
+) -> Result<ScaffoldReport> {
+    let mut report = ScaffoldReport::default();
+
+    for (relative, content) in &files {
+        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if !path.exists() {
+            continue;
+        }
+        let existing =
+            fs::read_to_string(&path).with_context(|| format!("cannot read {}", path.display()))?;
+        let preserve_state = scope == "project" && relative == ".base/history.jsonl";
+        let preserve_config = scope == "project" && relative == ".base/base.toml" && !force;
+        if preserve_config {
+            let config: crate::config::Config = toml::from_str(&existing)
+                .with_context(|| format!("invalid TOML in {}", path.display()))?;
+            config.validate()?;
+        }
+        if existing != *content && !preserve_state && !preserve_config && !force {
+            bail!(
+                "refusing to replace existing scaffold file {}; rerun with --force",
+                path.display()
+            );
+        }
+    }
+
+    for (relative, content) in files {
+        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("cannot create {}", parent.display()))?;
+        }
+        if path.exists() {
+            let existing = fs::read_to_string(&path)
+                .with_context(|| format!("cannot read {}", path.display()))?;
+            let preserve_state = scope == "project" && relative == ".base/history.jsonl";
+            let preserve_config = scope == "project" && relative == ".base/base.toml" && !force;
+            if existing == content || preserve_state || preserve_config {
+                report.unchanged.push(relative);
+                continue;
+            }
+            fs::write(&path, content)
+                .with_context(|| format!("cannot replace {}", path.display()))?;
+            report.replaced.push(relative);
+        } else {
+            fs::write(&path, content)
+                .with_context(|| format!("cannot write {}", path.display()))?;
+            report.created.push(relative);
+        }
+    }
+
+    Ok(report)
+}
+
 pub fn run(start: &Path, args: InitArgs, json: bool) -> Result<()> {
     let (scope, root, files) = if args.packs_only {
         ("global-packs", base_home()?, templates::global_pack_files())
@@ -42,64 +110,14 @@ pub fn run(start: &Path, args: InitArgs, json: bool) -> Result<()> {
     } else {
         RepositoryLock::global(&root, LockMode::Exclusive)?
     };
-    let mut report = InitReport {
+    let scaffolded = scaffold(&root, scope, files, args.force)?;
+    let report = InitReport {
         scope,
         root: root.display().to_string(),
-        created: Vec::new(),
-        replaced: Vec::new(),
-        unchanged: Vec::new(),
+        created: scaffolded.created,
+        replaced: scaffolded.replaced,
+        unchanged: scaffolded.unchanged,
     };
-
-    // Refuse all collisions before creating anything so a failed init never leaves a partial
-    // scaffold. Existing history is state, not scaffold, and a configured manifest is preserved
-    // by an ordinary idempotent init.
-    for (relative, content) in &files {
-        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
-        if !path.exists() {
-            continue;
-        }
-        let existing =
-            fs::read_to_string(&path).with_context(|| format!("cannot read {}", path.display()))?;
-        let preserve_state = scope == "project" && relative == ".base/history.jsonl";
-        let preserve_config = scope == "project" && relative == ".base/base.toml" && !args.force;
-        if preserve_config {
-            let config: crate::config::Config = toml::from_str(&existing)
-                .with_context(|| format!("invalid TOML in {}", path.display()))?;
-            config.validate()?;
-        }
-        if existing != *content && !preserve_state && !preserve_config && !args.force {
-            bail!(
-                "refusing to replace existing scaffold file {}; rerun with --force",
-                path.display()
-            );
-        }
-    }
-
-    for (relative, content) in files {
-        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("cannot create {}", parent.display()))?;
-        }
-        if path.exists() {
-            let existing = fs::read_to_string(&path)
-                .with_context(|| format!("cannot read {}", path.display()))?;
-            let preserve_state = scope == "project" && relative == ".base/history.jsonl";
-            let preserve_config =
-                scope == "project" && relative == ".base/base.toml" && !args.force;
-            if existing == content || preserve_state || preserve_config {
-                report.unchanged.push(relative);
-                continue;
-            }
-            fs::write(&path, content)
-                .with_context(|| format!("cannot replace {}", path.display()))?;
-            report.replaced.push(relative);
-        } else {
-            fs::write(&path, content)
-                .with_context(|| format!("cannot write {}", path.display()))?;
-            report.created.push(relative);
-        }
-    }
 
     if json {
         print_json(&report)
@@ -114,6 +132,8 @@ pub fn run(start: &Path, args: InitArgs, json: bool) -> Result<()> {
         );
         if report.scope == "project" {
             println!("next: base check && base sync");
+            println!("adopt the delivery operating model with: base adopt software-delivery");
+            println!("or onboard end to end in one command with: base start");
         }
         Ok(())
     }

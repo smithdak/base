@@ -62,16 +62,27 @@ cannot run.
 
 ## Quickstart
 
-Initialize the user-wide library once, then set up a repository and adopt the reusable delivery
-operating model:
+One command takes an empty or existing repository from zero to a validated, synced operating model:
 
 ```console
-base init --global          # install the bundled software-delivery pack into ~/.base
 cd your-project
-base init --project         # scaffold .base/ in this repository
+base start                  # scaffold ~/.base + .base/, adopt software-delivery, check, sync
+```
+
+`base start` is idempotent — rerunning it on an initialized project reports no-op stages. It fails
+with guidance instead of overwriting files it does not own; pass `--pack <id>` to adopt a different
+library pack or `--no-pack` for a bare project overlay. In a repository that already has
+`CLAUDE.md`, `AGENTS.md`, or other harness surfaces, add `--migrate-native`: recognized files move
+byte-preserving into `.base/native/` so the first sync composes them instead of colliding. The
+equivalent manual sequence is:
+
+```console
+base init --global            # install the bundled software-delivery pack into ~/.base
+cd your-project
+base init --project           # scaffold .base/ in this repository
 base adopt software-delivery  # vendor an immutable, hash-pinned copy into .base/packs/
-base check                  # validate composition and report adapter fidelity
-base sync                   # compile canon into each harness's native surfaces
+base check                    # validate composition and report adapter fidelity
+base sync                     # compile canon into each harness's native surfaces
 ```
 
 Then invoke the generated delivery pipeline from your harness:
@@ -83,15 +94,21 @@ Then invoke the generated delivery pipeline from your harness:
 | GitHub Copilot (CLI / cloud) | mention `$delivery` with the task |
 | GitHub Copilot (VS Code) | run `.github/prompts/delivery.prompt.md` |
 
-**Add your own definitions** under `.base/canon/`; never edit managed pack bytes or generated
-output. Refresh only Base-bundled library packs with `base init --global --packs-only --force` —
+**Define your own agentic system** by scaffolding each definition with
+`base canon new <kind> <id>` (rule, agent, skill, stage, pipeline, policy, verifier, knowledge) —
+the scaffold carries valid frontmatter and passes `base check` untouched. Run `base canon list` to
+see every definition composing into the project with its source tier. Draft library-pack content
+with `base canon new <kind> <id> --pack <id>`, then validate it with `base pack check`. Never edit
+managed pack bytes or generated output. Refresh only Base-bundled library packs with
+`base init --global --packs-only --force` —
 that scope never rewrites personal seed canon. Treat third-party packs as code: review their policy
 and verifier commands before adoption or upgrade.
 
 > **Adopting into an existing repo** that already owns `CLAUDE.md`, `AGENTS.md`, or Copilot
-> instruction files? Move target-specific material into `.base/native/` before the first sync, and
-> prefer promoting portable rules into `.base/canon/`. See the
-> [canon contract](docs/CANON.md#native-migration-overlays) for the merge rules.
+> instruction files? `base start --migrate-native` moves recognized surfaces into `.base/native/`
+> for you, or move target-specific material there by hand — and prefer promoting portable rules
+> into `.base/canon/`. See the [canon contract](docs/CANON.md#native-migration-overlays) for the
+> merge rules.
 >
 > **Upgrading a Base v0.1 project?** Follow the ordered, one-operator procedure in
 > [docs/UPGRADING.md](docs/UPGRADING.md) — do not ask the v0.1 binary to migrate itself.
@@ -100,11 +117,13 @@ and verifier commands before adoption or upgrade.
 
 ## Commands
 
-Eleven verbs, single Rust binary. Every command accepts `--json`.
+Thirteen verbs, single Rust binary. Every command accepts `--json`.
 
 | Command | Job |
 |---|---|
+| `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repository: scaffold, adopt a pack, validate, and sync in one step |
 | `base init [--global\|--project] [--packs-only] [--force]` | scaffold the global library or a project, or refresh only bundled packs |
+| `base canon <new\|list> [--pack <id>]` | scaffold a rule, agent, skill, stage, pipeline, policy, verifier, or knowledge entry; list what composes today |
 | `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
 | `base check` | validate composition and report gate plus definition-surface fidelity |
 | `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |
