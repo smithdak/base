@@ -75,6 +75,8 @@ pub struct Cli {
 pub enum Command {
     /// Scaffold a global canon or project overlay.
     Init(InitArgs),
+    /// Onboard a repository: scaffold, adopt a pack, validate, and sync.
+    Start(StartArgs),
     /// Compile canon into active harness surfaces.
     Sync(SyncArgs),
     /// Validate canon and report gate enforcement fidelity.
@@ -204,6 +206,21 @@ pub struct InitArgs {
     pub project: bool,
 
     /// Replace base-owned scaffold files that already exist.
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct StartArgs {
+    /// Library pack adopted after scaffolding.
+    #[arg(long, value_name = "PACK", default_value = "software-delivery")]
+    pub pack: String,
+
+    /// Skip pack adoption and compile only the project overlay.
+    #[arg(long, conflicts_with = "pack")]
+    pub no_pack: bool,
+
+    /// Replace existing scaffold or generated-output conflicts.
     #[arg(long)]
     pub force: bool,
 }

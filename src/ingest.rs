@@ -36,7 +36,8 @@ const MAPPABLE_HOOK_EVENTS: &[(&str, &str)] = &[
     ("SessionEnd", "session-end"),
 ];
 
-const PORTABLE_AGENT_FIELDS: &[&str] = &["name", "description", "tools", "skills", "permissionMode"];
+const PORTABLE_AGENT_FIELDS: &[&str] =
+    &["name", "description", "tools", "skills", "permissionMode"];
 const PORTABLE_SKILL_FIELDS: &[&str] = &["name", "description", "when_to_use", "argument-hint"];
 
 /// Standard definition directories, never treated as bespoke content.
@@ -218,7 +219,11 @@ fn resolve_roots(path: &Path) -> (PathBuf, PathBuf) {
     // A plugin root carries its manifest; definitions sit at the root itself.
     if path.join(".claude-plugin").join("plugin.json").is_file() {
         let nested = path.join(".claude");
-        let claude_dir = if nested.is_dir() { nested } else { path.to_path_buf() };
+        let claude_dir = if nested.is_dir() {
+            nested
+        } else {
+            path.to_path_buf()
+        };
         return (path.to_path_buf(), claude_dir);
     }
     let nested = path.join(".claude");
@@ -458,12 +463,8 @@ fn read_skills(bases: &[PathBuf], project_root: &Path, out: &mut Vec<Artifact>) 
                 (_, true) => Fidelity::Native,
                 (_, false) => Fidelity::Partial,
             };
-            let mut artifact = Artifact::definition(
-                relative,
-                front.name.unwrap_or(dir_name),
-                target,
-                fidelity,
-            );
+            let mut artifact =
+                Artifact::definition(relative, front.name.unwrap_or(dir_name), target, fidelity);
             artifact.description = front.description;
             if target == CanonKind::Pipeline {
                 artifact
@@ -521,9 +522,15 @@ fn looks_like_pipeline(body: &str) -> bool {
         })
         .count();
     let lower = body.to_ascii_lowercase();
-    let workflow_words = ["## stage", "approval gate", "independent review", "hand off", "pipeline"]
-        .iter()
-        .any(|needle| lower.contains(needle));
+    let workflow_words = [
+        "## stage",
+        "approval gate",
+        "independent review",
+        "hand off",
+        "pipeline",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle));
     ordered_steps >= 3 || workflow_words
 }
 
@@ -576,15 +583,25 @@ fn parse_hooks(relative: &str, value: &serde_json::Value, out: &mut Vec<Artifact
         let mut seq = 0;
         for group in groups.iter() {
             let matcher = group.get("matcher").and_then(|v| v.as_str()).unwrap_or("");
-            for hook in group.get("hooks").and_then(|v| v.as_array()).into_iter().flatten() {
+            for hook in group
+                .get("hooks")
+                .and_then(|v| v.as_array())
+                .into_iter()
+                .flatten()
+            {
                 let index = seq;
                 seq += 1;
-                let hook_type = hook.get("type").and_then(|v| v.as_str()).unwrap_or("command");
+                let hook_type = hook
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("command");
                 let (target, fidelity, note) = match (mapped, hook_type) {
                     (Some(canon_event), "command") => (
                         Some(CanonKind::Policy),
                         Fidelity::Partial,
-                        format!("event {event} → {canon_event}; author mode, argv command, failure posture"),
+                        format!(
+                            "event {event} → {canon_event}; author mode, argv command, failure posture"
+                        ),
                     ),
                     (Some(_), other) => (
                         None,
@@ -594,7 +611,9 @@ fn parse_hooks(relative: &str, value: &serde_json::Value, out: &mut Vec<Artifact
                     (None, _) => (
                         None,
                         Fidelity::Manual,
-                        format!("event {event} is outside the four canon lifecycle events; reproduce as tooling if needed"),
+                        format!(
+                            "event {event} is outside the four canon lifecycle events; reproduce as tooling if needed"
+                        ),
                     ),
                 };
                 let mut artifact = Artifact {
@@ -608,7 +627,9 @@ fn parse_hooks(relative: &str, value: &serde_json::Value, out: &mut Vec<Artifact
                     claude_only_fields: Vec::new(),
                 };
                 if !matcher.is_empty() {
-                    artifact.notes.push(format!("matcher `{matcher}` → match-tools glob"));
+                    artifact
+                        .notes
+                        .push(format!("matcher `{matcher}` → match-tools glob"));
                 }
                 out.push(artifact);
             }
@@ -620,9 +641,12 @@ fn summarize_permissions(relative: &str, value: &serde_json::Value, config: &mut
     let Some(permissions) = value.get("permissions").and_then(|v| v.as_object()) else {
         return;
     };
-    let touched = ["allow", "deny", "ask"]
-        .iter()
-        .any(|bucket| permissions.get(*bucket).and_then(|v| v.as_array()).is_some());
+    let touched = ["allow", "deny", "ask"].iter().any(|bucket| {
+        permissions
+            .get(*bucket)
+            .and_then(|v| v.as_array())
+            .is_some()
+    });
     if touched && !config.sources.iter().any(|s| s == relative) {
         config.sources.push(relative.to_owned());
     }
@@ -661,9 +685,18 @@ fn prefix_of(rule: &str) -> String {
 /// Deny rules that read like real standing-denial policy worth a base gate.
 fn is_standing_denial(rule: &str) -> bool {
     let lower = rule.to_ascii_lowercase();
-    ["push", "pr create", "pull_request", "force", "--force", "reset --hard", "rm -rf", "create_pull"]
-        .iter()
-        .any(|needle| lower.contains(needle))
+    [
+        "push",
+        "pr create",
+        "pull_request",
+        "force",
+        "--force",
+        "reset --hard",
+        "rm -rf",
+        "create_pull",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
 }
 
 // --- instructions (CLAUDE.md) ----------------------------------------------
@@ -707,11 +740,12 @@ fn read_mcp(
         }
         if let Ok(source) = fs::read_to_string(&path)
             && let Ok(value) = serde_json::from_str::<serde_json::Value>(&source)
-                && let Some(servers) = value.get("mcpServers").and_then(|v| v.as_object()) {
-                    for server in servers.keys() {
-                        push_unique(&mut config.mcp_servers, server.clone());
-                    }
-                }
+            && let Some(servers) = value.get("mcpServers").and_then(|v| v.as_object())
+        {
+            for server in servers.keys() {
+                push_unique(&mut config.mcp_servers, server.clone());
+            }
+        }
     }
 }
 
@@ -733,7 +767,10 @@ fn cluster_definitions(definitions: &[Artifact]) -> Vec<Cluster> {
     for agent in &agents {
         let parts: Vec<&str> = agent.name.split('-').collect();
         if parts.len() >= 2 {
-            by_prefix.entry(parts[0].to_owned()).or_default().push(agent.name.clone());
+            by_prefix
+                .entry(parts[0].to_owned())
+                .or_default()
+                .push(agent.name.clone());
             by_suffix
                 .entry(parts[parts.len() - 1].to_owned())
                 .or_default()
@@ -781,7 +818,10 @@ fn cluster_definitions(definitions: &[Artifact]) -> Vec<Cluster> {
         let mut sorted = agent.tools.clone();
         sorted.sort();
         sorted.dedup();
-        tool_groups.entry(sorted.join(",")).or_default().push(agent.name.clone());
+        tool_groups
+            .entry(sorted.join(","))
+            .or_default()
+            .push(agent.name.clone());
     }
     for (tools, members) in tool_groups {
         if members.len() >= 3 {
@@ -815,7 +855,11 @@ fn cluster_definitions(definitions: &[Artifact]) -> Vec<Cluster> {
 // --- content classification ------------------------------------------------
 
 fn classify_content(claude_dir: &Path, project_root: &Path) -> (Vec<DirRollup>, usize) {
-    let scan_root = if claude_dir.is_dir() { claude_dir } else { project_root };
+    let scan_root = if claude_dir.is_dir() {
+        claude_dir
+    } else {
+        project_root
+    };
     let mut rollups = Vec::new();
     let mut files_scanned = 0;
     let Ok(entries) = fs::read_dir(scan_root) else {
@@ -828,7 +872,8 @@ fn classify_content(claude_dir: &Path, project_root: &Path) -> (Vec<DirRollup>, 
             Err(_) => continue,
         };
         if file_type.is_dir() {
-            if DEFINITION_DIRS.contains(&name.as_str()) || name == ".git" || name == "node_modules" {
+            if DEFINITION_DIRS.contains(&name.as_str()) || name == ".git" || name == "node_modules"
+            {
                 continue;
             }
             let (rollup, scanned) = rollup_dir(&entry.path(), &name);
@@ -877,9 +922,13 @@ fn rollup_dir(dir: &Path, name: &str) -> (DirRollup, usize) {
         let category = classify_file(&fname, hint.unwrap_or(Category::Unclassified));
         *counts.entry(category).or_default() += 1;
         if samples.len() < 3
-            && let Ok(rel) = entry.path().strip_prefix(dir) {
-                samples.push(format!("{name}/{}", rel.to_string_lossy().replace('\\', "/")));
-            }
+            && let Ok(rel) = entry.path().strip_prefix(dir)
+        {
+            samples.push(format!(
+                "{name}/{}",
+                rel.to_string_lossy().replace('\\', "/")
+            ));
+        }
     }
     let primary = hint
         .filter(|_| files > 0)
@@ -903,22 +952,79 @@ fn rollup_dir(dir: &Path, name: &str) -> (DirRollup, usize) {
 fn dir_hint(name: &str) -> Option<Category> {
     let n = name.to_ascii_lowercase();
     const KNOWLEDGE: &[&str] = &[
-        "memory", "learnings", "learning", "investigations", "data", "guide", "guides", "specs",
-        "spec", "plans", "planning", "research", "features", "knowledge", "reference",
-        "references", "notes", "glossary", "estimates", "docs",
+        "memory",
+        "learnings",
+        "learning",
+        "investigations",
+        "data",
+        "guide",
+        "guides",
+        "specs",
+        "spec",
+        "plans",
+        "planning",
+        "research",
+        "features",
+        "knowledge",
+        "reference",
+        "references",
+        "notes",
+        "glossary",
+        "estimates",
+        "docs",
     ];
     const STATE: &[&str] = &[
-        "ado", "audit", "handoff", "handoffs", "implementations", "timesheet", "sessions", "state",
-        "runs", "history", "tasks", "workitems", "work-items", "cache", "mirror",
+        "ado",
+        "audit",
+        "handoff",
+        "handoffs",
+        "implementations",
+        "timesheet",
+        "sessions",
+        "state",
+        "runs",
+        "history",
+        "tasks",
+        "workitems",
+        "work-items",
+        "cache",
+        "mirror",
     ];
     const TOOLING: &[&str] = &[
-        "tools", "tool", "scripts", "script", "spe", "powershell", "ps", "bin", "vendor", "lib",
-        "hooks", "mcp", "utils", "tmp", "temp", "workflows",
+        "tools",
+        "tool",
+        "scripts",
+        "script",
+        "spe",
+        "powershell",
+        "ps",
+        "bin",
+        "vendor",
+        "lib",
+        "hooks",
+        "mcp",
+        "utils",
+        "tmp",
+        "temp",
+        "workflows",
     ];
     const GENERATED: &[&str] = &[
-        "reports", "report", "security-scans", "scans", "quality", "smoke", "solution-design",
-        "solution-designs", "output", "out", "dist", "generated", "artifacts", "showcase",
-        "design", "v2",
+        "reports",
+        "report",
+        "security-scans",
+        "scans",
+        "quality",
+        "smoke",
+        "solution-design",
+        "solution-designs",
+        "output",
+        "out",
+        "dist",
+        "generated",
+        "artifacts",
+        "showcase",
+        "design",
+        "v2",
     ];
     if KNOWLEDGE.contains(&n.as_str()) {
         Some(Category::Knowledge)
@@ -958,9 +1064,13 @@ fn classify_file(name: &str, fallback: Category) -> Category {
 
 fn category_note(category: Category, files: usize, breakdown: &[(Category, usize)]) -> String {
     let base = match category {
-        Category::Knowledge => "durable knowledge — carry the still-true parts as authored knowledge",
+        Category::Knowledge => {
+            "durable knowledge — carry the still-true parts as authored knowledge"
+        }
         Category::State => "runtime state — rebuild in base work/runs/state, do not copy bytes",
-        Category::Tooling => "scripts/tooling — out of canon (D-015); reproduce only if a capability",
+        Category::Tooling => {
+            "scripts/tooling — out of canon (D-015); reproduce only if a capability"
+        }
         Category::Generated => "generated artifacts — out of scope; regenerate, do not migrate",
         Category::Unclassified => "unclassified — review before deciding",
     };
@@ -1045,7 +1155,10 @@ fn markdown_files(bases: &[PathBuf], project_root: &Path, kind: &str) -> Vec<(St
                 continue;
             }
             let name = path.file_name().unwrap_or_default().to_string_lossy();
-            found.push((format!("{}/{kind}/{name}", rel(project_root, &base)), path.clone()));
+            found.push((
+                format!("{}/{kind}/{name}", rel(project_root, &base)),
+                path.clone(),
+            ));
         }
     }
     found
@@ -1053,7 +1166,11 @@ fn markdown_files(bases: &[PathBuf], project_root: &Path, kind: &str) -> Vec<(St
 
 fn dedup(bases: &[PathBuf]) -> Vec<PathBuf> {
     let mut seen = BTreeSet::new();
-    bases.iter().filter(|b| seen.insert((*b).clone())).cloned().collect()
+    bases
+        .iter()
+        .filter(|b| seen.insert((*b).clone()))
+        .cloned()
+        .collect()
 }
 
 /// A source label for a base directory relative to the project root.
@@ -1070,7 +1187,12 @@ fn rel(project_root: &Path, base: &Path) -> String {
 fn rel_file(project_root: &Path, path: &Path) -> String {
     path.strip_prefix(project_root)
         .map(|p| p.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_else(|_| path.file_name().unwrap_or_default().to_string_lossy().into_owned())
+        .unwrap_or_else(|_| {
+            path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned()
+        })
 }
 
 fn display(path: &Path) -> String {
@@ -1078,7 +1200,9 @@ fn display(path: &Path) -> String {
 }
 
 fn file_stem(path: &Path) -> String {
-    path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+    path.file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn push_unique(list: &mut Vec<String>, value: String) {
@@ -1087,7 +1211,10 @@ fn push_unique(list: &mut Vec<String>, value: String) {
     }
 }
 
-fn non_portable_fields(extra: &BTreeMap<String, serde_yaml::Value>, portable: &[&str]) -> Vec<String> {
+fn non_portable_fields(
+    extra: &BTreeMap<String, serde_yaml::Value>,
+    portable: &[&str],
+) -> Vec<String> {
     extra
         .keys()
         .filter(|key| !portable.contains(&key.as_str()))
@@ -1125,7 +1252,9 @@ mod tests {
         for n in ["injection", "crypto", "ssrf", "auth-bypass"] {
             write(
                 &root.join(format!(".claude/agents/security-{n}.md")),
-                &format!("---\nname: security-{n}\ndescription: Scan for {n}.\ntools: Read, Grep, Glob\n---\n\nScan.\n"),
+                &format!(
+                    "---\nname: security-{n}\ndescription: Scan for {n}.\ntools: Read, Grep, Glob\n---\n\nScan.\n"
+                ),
             );
         }
         write(
@@ -1144,8 +1273,14 @@ mod tests {
                 allow.join(", ")
             ),
         );
-        write(&root.join(".claude/memory/glossary.md"), "# Terms\n\nDA Core = ...\n");
-        write(&root.join(".claude/memory/patterns.md"), "# Patterns\n\nHelix ...\n");
+        write(
+            &root.join(".claude/memory/glossary.md"),
+            "# Terms\n\nDA Core = ...\n",
+        );
+        write(
+            &root.join(".claude/memory/patterns.md"),
+            "# Patterns\n\nHelix ...\n",
+        );
         write(&root.join(".claude/ado/items-cache.json"), "{}\n");
         write(&root.join(".claude/audit/2026/01/01.jsonl"), "{\"ts\":1}\n");
         write(&root.join(".claude/tools/sync.ps1"), "Write-Host hi\n");
@@ -1160,11 +1295,25 @@ mod tests {
         assert_eq!(ing.config.allow, 50);
         assert_eq!(ing.config.deny, 2);
         // The allowlist is ONE summary, not 50 definitions.
-        assert!(ing.definitions.len() < 20, "definitions flooded: {}", ing.definitions.len());
+        assert!(
+            ing.definitions.len() < 20,
+            "definitions flooded: {}",
+            ing.definitions.len()
+        );
         assert_eq!(ing.config.allow_by_prefix.get("Bash"), Some(&50));
         // Only the push deny is a standing-denial gate candidate.
-        assert!(ing.config.gate_candidates.iter().any(|r| r.contains("push")));
-        assert!(!ing.config.gate_candidates.iter().any(|r| r.contains("secret")));
+        assert!(
+            ing.config
+                .gate_candidates
+                .iter()
+                .any(|r| r.contains("push"))
+        );
+        assert!(
+            !ing.config
+                .gate_candidates
+                .iter()
+                .any(|r| r.contains("secret"))
+        );
     }
 
     #[test]
@@ -1199,7 +1348,11 @@ mod tests {
         // Point at the .claude directory itself — settings.json must still be found.
         let ing = ingest(&dir.path().join(".claude")).unwrap();
         assert_eq!(ing.config.allow, 50);
-        assert!(ing.definitions.iter().any(|d| d.target == Some(CanonKind::Agent)));
+        assert!(
+            ing.definitions
+                .iter()
+                .any(|d| d.target == Some(CanonKind::Agent))
+        );
     }
 
     #[test]
@@ -1217,13 +1370,19 @@ mod tests {
         let ing = ingest(root).unwrap();
         assert_eq!(ing.source_kind, SourceKind::Plugin);
         assert_eq!(ing.plugin.as_ref().unwrap().name.as_deref(), Some("mck"));
-        assert!(ing.definitions.iter().any(|d| d.target == Some(CanonKind::PackManifest)));
+        assert!(
+            ing.definitions
+                .iter()
+                .any(|d| d.target == Some(CanonKind::PackManifest))
+        );
         assert!(ing.definitions.iter().any(|d| d.name == "analyst"));
     }
 
     #[test]
     fn pipeline_heuristic_flags_multi_step_bodies() {
-        assert!(looks_like_pipeline("1. do this\n2. then this\n3. finally this\n"));
+        assert!(looks_like_pipeline(
+            "1. do this\n2. then this\n3. finally this\n"
+        ));
         assert!(looks_like_pipeline("## Stage one\nwork\n"));
         assert!(!looks_like_pipeline("Just run one command.\n"));
     }

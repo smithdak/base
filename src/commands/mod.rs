@@ -6,6 +6,7 @@ mod ingest;
 mod init;
 mod log;
 mod pack;
+mod start;
 mod state;
 mod sync;
 mod verify;
@@ -29,6 +30,7 @@ pub fn run(cli: Cli) -> Result<()> {
     let start = selected_directory(cli.directory.as_deref())?;
     match cli.command {
         Command::Init(args) => init::run(&start, args, cli.json),
+        Command::Start(args) => start::run(&start, args, cli.json),
         Command::Sync(args) => {
             let root = find_project_root(&start)?;
             let mode = if args.check {

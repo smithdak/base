@@ -14,18 +14,52 @@ use crate::render;
 use super::{load_project, print_json};
 
 #[derive(Debug, Serialize)]
-struct SyncReport {
-    mode: &'static str,
-    written: Vec<String>,
-    unchanged: Vec<String>,
-    removed: Vec<String>,
-    drift: Vec<String>,
+pub(super) struct SyncReport {
+    pub mode: &'static str,
+    pub written: Vec<String>,
+    pub unchanged: Vec<String>,
+    pub removed: Vec<String>,
+    pub drift: Vec<String>,
 }
 
 pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
     if args.check && args.force {
         bail!("--check and --force cannot be used together");
     }
+    let report = synchronize(project_root, args.check, args.force)?;
+    if args.check && !report.drift.is_empty() {
+        if json {
+            print_json(&report)?;
+        }
+        bail!(
+            "generated output is out of sync: {}",
+            report.drift.join(", ")
+        );
+    }
+
+    if json {
+        print_json(&report)
+    } else if args.check {
+        println!(
+            "sync check passed ({} generated files)",
+            report.unchanged.len()
+        );
+        Ok(())
+    } else {
+        println!(
+            "synced {} files ({} written, {} unchanged, {} removed)",
+            report.written.len() + report.unchanged.len(),
+            report.written.len(),
+            report.unchanged.len(),
+            report.removed.len()
+        );
+        Ok(())
+    }
+}
+
+/// Compile canon and apply it to generated surfaces without printing.
+/// Write mode stamps the new manifest; check mode only reports drift.
+pub(super) fn synchronize(project_root: &Path, check: bool, force: bool) -> Result<SyncReport> {
     let (mut config, canon) = load_project(project_root)?;
     let mut rendered = render::render(&canon, &config)?;
     apply_native_overlays(project_root, &config, &mut rendered)?;
@@ -35,20 +69,20 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
         .collect();
 
     let mut report = SyncReport {
-        mode: if args.check { "check" } else { "write" },
+        mode: if check { "check" } else { "write" },
         written: Vec::new(),
         unchanged: Vec::new(),
         removed: Vec::new(),
         drift: Vec::new(),
     };
 
-    if !args.check {
+    if !check {
         preflight(
             project_root,
             &config.generated,
             &rendered,
             &new_manifest,
-            args.force,
+            force,
         )?;
     }
 
@@ -60,7 +94,7 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
             .get(relative)
             .expect("manifest built from output");
 
-        if args.check {
+        if check {
             match existing {
                 None => report.drift.push(format!("missing {relative}")),
                 Some(content) if generated_digest(&content) != *expected_hash => {
@@ -79,11 +113,11 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
         if let Some(existing) = &existing {
             let existing_hash = generated_digest(existing);
             match old_hash {
-                Some(recorded) if &existing_hash != recorded && !args.force => bail!(
+                Some(recorded) if &existing_hash != recorded && !force => bail!(
                     "generated file {} was hand-modified; use `base sync --force` to replace it",
                     path.display()
                 ),
-                None if existing_hash != *expected_hash && !args.force => bail!(
+                None if existing_hash != *expected_hash && !force => bail!(
                     "refusing to overwrite unowned file {}; move it or use `base sync --force`",
                     path.display()
                 ),
@@ -108,7 +142,7 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
         if rendered.contains_key(relative) {
             continue;
         }
-        if args.check {
+        if check {
             report
                 .drift
                 .push(format!("stale manifest entry {relative}"));
@@ -119,7 +153,7 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
             let existing_hash = generated_digest(
                 &fs::read(&path).with_context(|| format!("cannot read {}", path.display()))?,
             );
-            if &existing_hash != old_hash && !args.force {
+            if &existing_hash != old_hash && !force {
                 bail!(
                     "stale generated file {} was hand-modified; use --force to remove it",
                     path.display()
@@ -132,39 +166,12 @@ pub fn run(project_root: &Path, args: SyncArgs, json: bool) -> Result<()> {
         report.removed.push(relative.clone());
     }
 
-    if args.check {
-        if !report.drift.is_empty() {
-            if json {
-                print_json(&report)?;
-            }
-            bail!(
-                "generated output is out of sync: {}",
-                report.drift.join(", ")
-            );
-        }
-    } else {
+    if !check {
         config.generated = new_manifest;
         config.save(project_root)?;
     }
 
-    if json {
-        print_json(&report)
-    } else if args.check {
-        println!(
-            "sync check passed ({} generated files)",
-            report.unchanged.len()
-        );
-        Ok(())
-    } else {
-        println!(
-            "synced {} files ({} written, {} unchanged, {} removed)",
-            report.written.len() + report.unchanged.len(),
-            report.written.len(),
-            report.unchanged.len(),
-            report.removed.len()
-        );
-        Ok(())
-    }
+    Ok(report)
 }
 
 const NATIVE_OVERLAYS: [(&str, Target, bool); 6] = [

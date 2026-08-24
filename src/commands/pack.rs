@@ -62,17 +62,18 @@ fn new(id: &str, json: bool) -> Result<()> {
         )
     })?;
 
-    let report = NewReport {
-        pack: id.to_owned(),
-        root: destination.display().to_string().replace('\\', "/"),
-        files: files.keys().cloned().collect(),
-        next_steps: vec![
+    let report =
+        NewReport {
+            pack: id.to_owned(),
+            root: destination.display().to_string().replace('\\', "/"),
+            files: files.keys().cloned().collect(),
+            next_steps: vec![
             "author canonical definitions under the kind folders (authored rewrites, not copies)"
                 .to_owned(),
             format!("validate with `base pack check {}`", report_root(&destination)),
             "then `base adopt` the pack into a project".to_owned(),
         ],
-    };
+        };
     if json {
         print_json(&report)
     } else {
@@ -98,9 +99,7 @@ fn scaffold(id: &str) -> BTreeMap<String, String> {
     );
     files.insert(
         "knowledge/overview.md".to_owned(),
-        format!(
-            "# {id} overview\n\nTODO: what this pack encodes and where it came from.\n"
-        ),
+        format!("# {id} overview\n\nTODO: what this pack encodes and where it came from.\n"),
     );
     files
 }
@@ -119,8 +118,7 @@ fn write_tree(root: &Path, files: &BTreeMap<String, String>) -> Result<()> {
         "knowledge",
     ] {
         let dir = root.join(kind.replace('/', std::path::MAIN_SEPARATOR_STR));
-        fs::create_dir_all(&dir)
-            .with_context(|| format!("cannot create {}", dir.display()))?;
+        fs::create_dir_all(&dir).with_context(|| format!("cannot create {}", dir.display()))?;
     }
     for (relative, content) in files {
         let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
