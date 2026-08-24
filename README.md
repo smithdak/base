@@ -71,7 +71,10 @@ base start                  # scaffold ~/.base + .base/, adopt software-delivery
 
 `base start` is idempotent — rerunning it on an initialized project reports no-op stages. It fails
 with guidance instead of overwriting files it does not own; pass `--pack <id>` to adopt a different
-library pack or `--no-pack` for a bare project overlay. The equivalent manual sequence is:
+library pack or `--no-pack` for a bare project overlay. In a repository that already has
+`CLAUDE.md`, `AGENTS.md`, or other harness surfaces, add `--migrate-native`: recognized files move
+byte-preserving into `.base/native/` so the first sync composes them instead of colliding. The
+equivalent manual sequence is:
 
 ```console
 base init --global            # install the bundled software-delivery pack into ~/.base
@@ -97,9 +100,10 @@ that scope never rewrites personal seed canon. Treat third-party packs as code: 
 and verifier commands before adoption or upgrade.
 
 > **Adopting into an existing repo** that already owns `CLAUDE.md`, `AGENTS.md`, or Copilot
-> instruction files? Move target-specific material into `.base/native/` before the first sync, and
-> prefer promoting portable rules into `.base/canon/`. See the
-> [canon contract](docs/CANON.md#native-migration-overlays) for the merge rules.
+> instruction files? `base start --migrate-native` moves recognized surfaces into `.base/native/`
+> for you, or move target-specific material there by hand — and prefer promoting portable rules
+> into `.base/canon/`. See the [canon contract](docs/CANON.md#native-migration-overlays) for the
+> merge rules.
 >
 > **Upgrading a Base v0.1 project?** Follow the ordered, one-operator procedure in
 > [docs/UPGRADING.md](docs/UPGRADING.md) — do not ask the v0.1 binary to migrate itself.

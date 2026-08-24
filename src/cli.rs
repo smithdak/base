@@ -220,6 +220,11 @@ pub struct StartArgs {
     #[arg(long, conflicts_with = "pack")]
     pub no_pack: bool,
 
+    /// Preserve existing harness instruction and config files by moving them
+    /// into the .base/native/ overlay before the first sync composes them.
+    #[arg(long)]
+    pub migrate_native: bool,
+
     /// Replace existing scaffold or generated-output conflicts.
     #[arg(long)]
     pub force: bool,

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
@@ -6,7 +7,7 @@ use serde::Serialize;
 use crate::base_home;
 use crate::canon::Canon;
 use crate::cli::StartArgs;
-use crate::config::Config;
+use crate::config::{Config, Target};
 use crate::lock::{LockMode, RepositoryLock};
 use crate::templates;
 
@@ -22,6 +23,7 @@ struct StartReport {
     global: GlobalStage,
     project: ProjectStage,
     pack: PackStage,
+    native: NativeStage,
     canon: CanonStage,
     sync: SyncStage,
     next: Vec<String>,
@@ -67,6 +69,13 @@ struct SyncStage {
     removed: usize,
 }
 
+#[derive(Debug, Serialize)]
+struct NativeStage {
+    action: &'static str,
+    found: Vec<String>,
+    moved: Vec<String>,
+}
+
 pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
     let root = start.to_path_buf();
     std::fs::create_dir_all(&root)
@@ -99,6 +108,38 @@ pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
     };
 
     let config = Config::load(&root)?;
+    let found = detect_foreign_surfaces(&root, &config.targets)?;
+    let native_stage = if found.is_empty() {
+        NativeStage {
+            action: "none",
+            found,
+            moved: Vec::new(),
+        }
+    } else if args.migrate_native {
+        let moved = migrate_surfaces(&root, &found)?;
+        NativeStage {
+            action: "migrated",
+            found,
+            moved,
+        }
+    } else if args.force {
+        for relative in &found {
+            let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+            std::fs::remove_file(&path)
+                .with_context(|| format!("cannot replace unowned surface {}", path.display()))?;
+        }
+        NativeStage {
+            action: "replaced",
+            found,
+            moved: Vec::new(),
+        }
+    } else {
+        bail!(
+            "existing harness surface(s) {} would collide with generated output; rerun with --migrate-native to preserve them under .base/native/, move them yourself, or use --force to replace them",
+            found.join(", ")
+        );
+    };
+
     let canon = Canon::load(&home, &root, &config)?;
     work::validate(&root)?;
     let canon_stage = CanonStage {
@@ -126,6 +167,17 @@ pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
                 .to_owned(),
         );
     }
+    match native_stage.action {
+        "migrated" => next.push(
+            "review the composed surfaces; the original bytes are preserved under .base/native/"
+                .to_owned(),
+        ),
+        "replaced" => next.push(
+            "existing harness surfaces were replaced by generated output; recover prior content from git history if needed"
+                .to_owned(),
+        ),
+        _ => {}
+    }
     next.push(
         "invoke the delivery pipeline from your harness: /delivery <task> (Claude Code) or mention $delivery <task> (Codex, Copilot)"
             .to_owned(),
@@ -137,6 +189,7 @@ pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
         global,
         project,
         pack: pack_stage,
+        native: native_stage,
         canon: canon_stage,
         sync: sync_stage,
         next,
@@ -157,6 +210,18 @@ pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
         match (&report.pack.version, report.pack.action) {
             (Some(version), action) => println!("  pack {}: {version} {action}", report.pack.pack),
             (None, action) => println!("  pack adoption: {action}"),
+        }
+        if report.native.action == "migrated" {
+            println!(
+                "  native migration: moved {} into .base/native/",
+                report.native.moved.join(", ")
+            );
+        }
+        if report.native.action == "replaced" {
+            println!(
+                "  native surfaces replaced: {}",
+                report.native.found.join(", ")
+            );
         }
         println!(
             "  canon valid: {} rules, {} agents, {} skills, {} stages, {} pipelines, {} policies, {} verifiers, {} knowledge entries",
@@ -179,6 +244,57 @@ pub fn run(start: &Path, args: StartArgs, json: bool) -> Result<()> {
         }
         Ok(())
     }
+}
+
+/// Harness surfaces whose generated output would collide with pre-existing
+/// files. Reuses the native-overlay table so migration and composition can
+/// never disagree about the allowlist.
+fn detect_foreign_surfaces(root: &Path, targets: &[Target]) -> Result<Vec<String>> {
+    let owned: BTreeSet<String> = if Config::path(root).is_file() {
+        Config::load(root)?.generated.keys().cloned().collect()
+    } else {
+        BTreeSet::new()
+    };
+    Ok(sync::NATIVE_OVERLAYS
+        .iter()
+        .filter(|(relative, target, _)| targets.contains(target) && !owned.contains(*relative))
+        .map(|(relative, _, _)| relative.to_string())
+        .filter(|relative| {
+            root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .is_file()
+        })
+        .collect())
+}
+
+/// Move recognized harness surfaces byte-preserving into `.base/native/`.
+/// Existing overlays are never overwritten; the caller decides how to merge.
+fn migrate_surfaces(root: &Path, found: &[String]) -> Result<Vec<String>> {
+    let mut moved = Vec::new();
+    for relative in found {
+        let source = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let destination_relative = format!(".base/native/{relative}");
+        let destination =
+            root.join(destination_relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        if destination.exists() {
+            bail!(
+                "native overlay {destination_relative} already exists; merge {} into it manually",
+                relative
+            );
+        }
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("cannot create {}", parent.display()))?;
+        }
+        std::fs::rename(&source, &destination).with_context(|| {
+            format!(
+                "cannot move {} to {}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+        moved.push(relative.clone());
+    }
+    Ok(moved)
 }
 
 /// Make the requested library pack available under BASE_HOME, scaffolding the

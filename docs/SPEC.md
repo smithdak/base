@@ -136,7 +136,7 @@ managed pack bytes, or manifest-listed generated output.
 | Verb | Job |
 |---|---|
 | `base init [--global] [--project] [--packs-only] [--force]` | scaffold the global library/project, or refresh only bundled packs |
-| `base start [--pack] [--no-pack] [--force]` | onboard a repository: scaffold the library and project, adopt a pack, validate, and sync |
+| `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repository: scaffold the library and project, adopt a pack, validate, and sync |
 | `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
 | `base check` | validate composition and report gate plus definition-surface fidelity |
 | `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |

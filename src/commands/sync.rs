@@ -174,7 +174,7 @@ pub(super) fn synchronize(project_root: &Path, check: bool, force: bool) -> Resu
     Ok(report)
 }
 
-const NATIVE_OVERLAYS: [(&str, Target, bool); 6] = [
+pub(super) const NATIVE_OVERLAYS: [(&str, Target, bool); 6] = [
     ("CLAUDE.md", Target::Claude, false),
     (".claude/settings.json", Target::Claude, true),
     ("AGENTS.md", Target::Codex, false),
