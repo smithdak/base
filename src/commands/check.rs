@@ -396,7 +396,7 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn source_label(source: &crate::canon::Source) -> String {
+pub(super) fn source_label(source: &crate::canon::Source) -> String {
     match source.layer {
         Layer::Global => "global".to_owned(),
         Layer::Pack => format!("pack:{}", source.pack.as_deref().unwrap_or("unknown")),

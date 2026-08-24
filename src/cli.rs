@@ -87,6 +87,8 @@ pub enum Command {
     Ingest(IngestArgs),
     /// Scaffold or validate a canon pack.
     Pack(PackArgs),
+    /// Scaffold a canon definition or list composed definitions.
+    Canon(CanonArgs),
     /// Manage project work items.
     Work(WorkArgs),
     /// Inspect run history or one run folder.
@@ -126,6 +128,47 @@ pub struct IngestArgs {
 pub struct PackArgs {
     #[command(subcommand)]
     pub command: PackCommand,
+}
+
+#[derive(Debug, Args)]
+pub struct CanonArgs {
+    #[command(subcommand)]
+    pub command: CanonCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CanonCommand {
+    /// Scaffold a canon definition with valid frontmatter.
+    New {
+        /// Canon kind to scaffold.
+        #[arg(value_enum)]
+        kind: CanonKind,
+
+        /// Canonical id (lowercase letters, digits, hyphens).
+        id: String,
+
+        /// Draft into this global-library pack instead of the project overlay.
+        #[arg(long, value_name = "PACK")]
+        pack: Option<String>,
+    },
+    /// List composed canon definitions and their source tier.
+    List {
+        /// Restrict the listing to one canon kind.
+        #[arg(value_enum)]
+        kind: Option<CanonKind>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum CanonKind {
+    Rule,
+    Agent,
+    Skill,
+    Stage,
+    Pipeline,
+    Policy,
+    Verifier,
+    Knowledge,
 }
 
 #[derive(Debug, Subcommand)]

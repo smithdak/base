@@ -126,9 +126,9 @@ fn spec_section_7_matches_the_clap_definition() {
     );
 
     // "…, five verbs in v1" — keep the prose count honest when verbs change.
-    const COUNT_WORDS: [&str; 13] = [
+    const COUNT_WORDS: [&str; 14] = [
         "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-        "eleven", "twelve",
+        "eleven", "twelve", "thirteen",
     ];
     if let Some(word) = COUNT_WORDS.get(actual.len()) {
         assert!(

@@ -130,13 +130,14 @@ completion terminate descendants while pipe handling stays deadline-bounded.
 
 ## 7. The CLI
 
-Rust, single binary, twelve verbs. Every verb supports `--json`; mutations touch Base-owned files,
+Rust, single binary, thirteen verbs. Every verb supports `--json`; mutations touch Base-owned files,
 managed pack bytes, or manifest-listed generated output.
 
 | Verb | Job |
 |---|---|
 | `base init [--global] [--project] [--packs-only] [--force]` | scaffold the global library/project, or refresh only bundled packs |
 | `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repository: scaffold the library and project, adopt a pack, validate, and sync |
+| `base canon <new\|list>` | scaffold a canon definition with valid frontmatter, or list composed definitions by source tier |
 | `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
 | `base check` | validate composition and report gate plus definition-surface fidelity |
 | `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |

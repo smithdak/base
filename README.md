@@ -94,8 +94,13 @@ Then invoke the generated delivery pipeline from your harness:
 | GitHub Copilot (CLI / cloud) | mention `$delivery` with the task |
 | GitHub Copilot (VS Code) | run `.github/prompts/delivery.prompt.md` |
 
-**Add your own definitions** under `.base/canon/`; never edit managed pack bytes or generated
-output. Refresh only Base-bundled library packs with `base init --global --packs-only --force` —
+**Define your own agentic system** by scaffolding each definition with
+`base canon new <kind> <id>` (rule, agent, skill, stage, pipeline, policy, verifier, knowledge) —
+the scaffold carries valid frontmatter and passes `base check` untouched. Run `base canon list` to
+see every definition composing into the project with its source tier. Draft library-pack content
+with `base canon new <kind> <id> --pack <id>`, then validate it with `base pack check`. Never edit
+managed pack bytes or generated output. Refresh only Base-bundled library packs with
+`base init --global --packs-only --force` —
 that scope never rewrites personal seed canon. Treat third-party packs as code: review their policy
 and verifier commands before adoption or upgrade.
 
@@ -112,12 +117,13 @@ and verifier commands before adoption or upgrade.
 
 ## Commands
 
-Twelve verbs, single Rust binary. Every command accepts `--json`.
+Thirteen verbs, single Rust binary. Every command accepts `--json`.
 
 | Command | Job |
 |---|---|
-| `base start [--pack] [--no-pack] [--force]` | onboard a repository: scaffold, adopt a pack, validate, and sync in one step |
+| `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repository: scaffold, adopt a pack, validate, and sync in one step |
 | `base init [--global\|--project] [--packs-only] [--force]` | scaffold the global library or a project, or refresh only bundled packs |
+| `base canon <new\|list> [--pack <id>]` | scaffold a rule, agent, skill, stage, pipeline, policy, verifier, or knowledge entry; list what composes today |
 | `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
 | `base check` | validate composition and report gate plus definition-surface fidelity |
 | `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |
