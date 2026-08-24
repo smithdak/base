@@ -132,6 +132,8 @@ pub fn run(start: &Path, args: InitArgs, json: bool) -> Result<()> {
         );
         if report.scope == "project" {
             println!("next: base check && base sync");
+            println!("adopt the delivery operating model with: base adopt software-delivery");
+            println!("or onboard end to end in one command with: base start");
         }
         Ok(())
     }

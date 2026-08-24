@@ -206,7 +206,9 @@ case-colliding pack or skill-resource paths fail validation.
 Base owns generated target files, but existing project-specific target configuration can be kept
 under `.base/native/` at one of six mirrored paths: `CLAUDE.md`, `AGENTS.md`,
 `.github/copilot-instructions.md`, `.claude/settings.json`, `.codex/hooks.json`, or
-`.github/hooks/base.json`. Markdown is appended after a visible source marker. JSON inputs must be
+`.github/hooks/base.json`. `base start --migrate-native` moves recognized files to these paths
+byte-preserving during onboarding; move them by hand for an already-initialized project. Markdown is
+appended after a visible source marker. JSON inputs must be
 objects; recursive object keys compose, overlay arrays precede Base arrays, and Base wins scalar or
 type conflicts. An overlay for a disabled target is invalid. Use canon rather than this escape hatch
 for portable rules, agents, skills, pipelines, policies, or verifiers.
