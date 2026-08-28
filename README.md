@@ -1,30 +1,96 @@
 # Base
 
-**One operating model. Every harness. Plain files in git.**
+**Describe your team's way of working once. Base compiles it into the native setup of every AI
+coding agent.**
 
-Base is a repository operating-model core for Claude Code, Codex, and GitHub Copilot. Define your
-rules, agents, skills, pipelines, lifecycle policies, verifier suites, and knowledge once; Base
-compiles them into each harness's native project surfaces. Work, runs, evidence, decisions, and
-handoff state stay as plain files in git. **Base does not run an agent loop** — the CLI composes,
-validates, renders, gates, verifies, and records; your harness owns the model.
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Commands](#commands) ·
+[Project layout](#project-layout) · [Docs](#documentation)
 
-- 🧩 **One canon, native adapters** — author once, render to Claude, Codex, and Copilot.
-- 📂 **Git is the substrate** — definitions, packs, work, runs, and evidence are diffable files.
-- 🔒 **Lifecycle, not inference** — gates, verifiers, and hooks with typed, honest outcomes.
-- 📦 **Reusable packs** — versioned, hash-pinned operating models adopted by copy.
+## The problem
 
----
+Every agent harness ships its own configuration format. Your rules get copy-pasted across
+`CLAUDE.md`, `AGENTS.md`, and Copilot instructions — then drift apart. Nothing enforces your
+process, no two tools behave the same, and every session starts from zero context.
+
+Base fixes this. You define rules, agents, skills, pipelines, policies, and verifiers in one
+place; Base compiles them into each harness's native project files. Work items, run history, and
+evidence stay as plain, diffable files in git.
+
+- **Author once, render everywhere** — one set of definitions, three native targets: Claude Code,
+  Codex, and GitHub Copilot.
+- **Git is the database** — definitions, work items, runs, and evidence are reviewable files, not
+  a hosted service.
+- **Enforcement with honest outcomes** — gates, hooks, and verifiers report `pass`, `fail`, or
+  `inconclusive`; a missing tool is never quietly treated as success.
+- **Reusable starting points** — versioned packs you adopt by copy, including a bundled
+  software-delivery operating model.
+
+Base does not run an agent loop — your harness owns the model. Base is the CLI that composes,
+validates, renders, gates, verifies, and records.
+
+## Quick start
+
+Requires Rust 1.93 (pinned in `rust-toolchain.toml`).
+
+```console
+cargo install --path .        # from a clone of this repository
+cd your-project
+base start                    # one command: scaffold, adopt the delivery pack, validate, sync
+```
+
+`base start` creates `~/.base/` (your personal library), scaffolds `.base/` in the repository,
+adopts the bundled `software-delivery` pack, validates everything, and generates:
+
+| Harness | What Base writes |
+|---|---|
+| Claude Code | `CLAUDE.md`, `.claude/` |
+| Codex | `AGENTS.md`, `.codex/` |
+| GitHub Copilot | `.github/`, `.agents/skills/` |
+
+Then start a delivery pipeline from your harness:
+
+| Harness | Invocation |
+|---|---|
+| Claude Code | `/delivery <task>` |
+| Codex | mention `$delivery <task>` |
+| Copilot (CLI / cloud) | mention `$delivery <task>` |
+| Copilot (VS Code) | run `.github/prompts/delivery.prompt.md` |
+
+Rerunning `base start` is safe — it reports what changed instead of redoing work.
+
+> [!TIP]
+> Adding Base to a repo that already has `CLAUDE.md` or `AGENTS.md`? Use
+> `base start --migrate-native`: existing files move byte-for-byte into `.base/native/` and are
+> composed into the generated output instead of being overwritten. Prefer promoting portable rules
+> into `.base/canon/` — see [the canon contract](docs/CANON.md#native-migration-overlays).
+
+### Define your own system
+
+Scaffold any building block with valid frontmatter, then compile it:
+
+```console
+base canon new rule no-secret-commits     # also: agent, skill, stage, pipeline,
+                                          # policy, verifier, knowledge
+base canon list                           # see everything composing today, by source
+base check && base sync                   # validate and render to all harnesses
+```
+
+> [!IMPORTANT]
+> Never edit managed pack bytes under `.base/packs/` or generated files like `CLAUDE.md` — change
+> the source under `.base/canon/` and rerun `base sync`. Treat third-party packs as code: review
+> their policy and verifier commands before adopting them.
+
+Upgrading a Base v0.1 project? Follow [docs/UPGRADING.md](docs/UPGRADING.md).
 
 ## How it works
 
-Base compiles one vendor-neutral **canon** — composed from your personal seed library, versioned
-**packs**, and a project **overlay** (which wins last) — into each harness's native project files.
-Run `base sync` and the same definitions render three ways:
+Definitions compose in a fixed order — personal library first, then adopted packs, then the
+project overlay wins last — and `base sync` renders them into each harness natively:
 
 ```mermaid
 flowchart LR
-  seed["personal seed<br/>~/.base"]
-  packs["vendored packs<br/>.base/packs"]
+  seed["personal library<br/>~/.base"]
+  packs["adopted packs<br/>.base/packs"]
   overlay["project overlay<br/>.base/canon"]
   sync(["base sync"])
   claude["Claude Code<br/>CLAUDE.md · .claude/"]
@@ -38,119 +104,41 @@ flowchart LR
   sync --> copilot
 ```
 
-Composition is deterministic: global seed canon, then configured packs in declaration order (later
-IDs win), then the project overlay wins last. Only repository-resident pack and project definitions
-render into committed output. Where a target cannot express a definition natively, Base **reports**
-the reduced fidelity instead of hiding it — see the [adapter fidelity matrix](docs/ADAPTERS.md).
+Where a target cannot express something natively, Base reports the reduced fidelity rather than
+hiding it — the [adapter matrix](docs/ADAPTERS.md) says exactly what each harness gets.
 
----
+Everything else accumulates as plain files under `.base/`: current work, handoffs between
+sessions, run folders with retained evidence, and an append-only history ledger.
 
-## Install
-
-The repository pins and declares Rust 1.93.0; that is the toolchain used by the shipped proof.
-
-```console
-cargo install --path .
-base --help
-```
-
-Install the same `base` binary in every local and remote agent environment that needs generated
-hooks. Static instructions, agents, and skills remain usable without it, but lifecycle enforcement
-cannot run.
-
----
-
-## Quickstart
-
-One command takes an empty or existing repository from zero to a validated, synced operating model:
-
-```console
-cd your-project
-base start                  # scaffold ~/.base + .base/, adopt software-delivery, check, sync
-```
-
-`base start` is idempotent — rerunning it on an initialized project reports no-op stages. It fails
-with guidance instead of overwriting files it does not own; pass `--pack <id>` to adopt a different
-library pack or `--no-pack` for a bare project overlay. In a repository that already has
-`CLAUDE.md`, `AGENTS.md`, or other harness surfaces, add `--migrate-native`: recognized files move
-byte-preserving into `.base/native/` so the first sync composes them instead of colliding. The
-equivalent manual sequence is:
-
-```console
-base init --global            # install the bundled software-delivery pack into ~/.base
-cd your-project
-base init --project           # scaffold .base/ in this repository
-base adopt software-delivery  # vendor an immutable, hash-pinned copy into .base/packs/
-base check                    # validate composition and report adapter fidelity
-base sync                     # compile canon into each harness's native surfaces
-```
-
-Then invoke the generated delivery pipeline from your harness:
-
-| Harness | Invocation |
-|---|---|
-| Claude Code | `/delivery <task>` |
-| Codex | mention `$delivery` with the task |
-| GitHub Copilot (CLI / cloud) | mention `$delivery` with the task |
-| GitHub Copilot (VS Code) | run `.github/prompts/delivery.prompt.md` |
-
-**Define your own agentic system** by scaffolding each definition with
-`base canon new <kind> <id>` (rule, agent, skill, stage, pipeline, policy, verifier, knowledge) —
-the scaffold carries valid frontmatter and passes `base check` untouched. Run `base canon list` to
-see every definition composing into the project with its source tier. Draft library-pack content
-with `base canon new <kind> <id> --pack <id>`, then validate it with `base pack check`. Never edit
-managed pack bytes or generated output. Refresh only Base-bundled library packs with
-`base init --global --packs-only --force` —
-that scope never rewrites personal seed canon. Treat third-party packs as code: review their policy
-and verifier commands before adoption or upgrade.
-
-> **Adopting into an existing repo** that already owns `CLAUDE.md`, `AGENTS.md`, or Copilot
-> instruction files? `base start --migrate-native` moves recognized surfaces into `.base/native/`
-> for you, or move target-specific material there by hand — and prefer promoting portable rules
-> into `.base/canon/`. See the [canon contract](docs/CANON.md#native-migration-overlays) for the
-> merge rules.
->
-> **Upgrading a Base v0.1 project?** Follow the ordered, one-operator procedure in
-> [docs/UPGRADING.md](docs/UPGRADING.md) — do not ask the v0.1 binary to migrate itself.
-
----
+> [!NOTE]
+> Hooks are workflow guardrails, not security boundaries. Protect your default branch at the Git
+> server — that is the authoritative control.
 
 ## Commands
 
-Thirteen verbs, single Rust binary. Every command accepts `--json`.
+Thirteen verbs, one binary. Every command accepts `--json`.
 
 | Command | Job |
 |---|---|
-| `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repository: scaffold, adopt a pack, validate, and sync in one step |
-| `base init [--global\|--project] [--packs-only] [--force]` | scaffold the global library or a project, or refresh only bundled packs |
-| `base canon <new\|list> [--pack <id>]` | scaffold a rule, agent, skill, stage, pipeline, policy, verifier, or knowledge entry; list what composes today |
-| `base sync [--check] [--force]` | compile canon to active targets; stamp or verify generated hashes |
-| `base check` | validate composition and report gate plus definition-surface fidelity |
-| `base adopt <pack> [--upgrade]` | vendor or safely upgrade an immutable versioned pack |
-| `base ingest <path> [--run]` | read another system's harness surfaces into a portable inventory and mapping report |
-| `base pack <new\|check>` | scaffold a library pack skeleton or validate a drafted pack |
-| `base work <list\|new\|show\|move\|board>` | manage folder-backed work items and the kanban board |
-| `base state <show\|set\|clear\|context>` | manage current work and emit portable session context |
-| `base verify <suite> [--run]` | execute typed verifier checks and optionally retain evidence |
-| `base approve <run> <gate> [--deny] [--by] [--note]` | write a create-new operator stage-gate verdict |
-| `base log [<slug>]` | inspect run history or one run folder |
+| `base start [--pack] [--no-pack] [--migrate-native] [--force]` | onboard a repo in one step |
+| `base init [--global\|--project] [--packs-only] [--force]` | scaffold the global library or a project |
+| `base canon <new\|list> [--pack <id>]` | scaffold a definition; list what composes today |
+| `base sync [--check] [--force]` | compile canon to active harness surfaces |
+| `base check` | validate composition and report adapter fidelity |
+| `base adopt <pack> [--upgrade]` | vendor or upgrade an immutable versioned pack |
+| `base ingest <path> [--run]` | inventory another system's harness files for migration |
+| `base pack <new\|check>` | scaffold or validate a library pack |
+| `base work <list\|new\|show\|move\|board>` | manage work items on a kanban board |
+| `base state <show\|set\|clear\|context>` | manage current work and session context |
+| `base verify <suite> [--run]` | run verifier checks and retain evidence |
+| `base approve <run> <gate> [--deny] [--by] [--note]` | record an operator gate verdict |
+| `base log [<slug>]` | inspect run history |
 
-`base sync --check` validates canon and fails when generated output is missing, stale, hand-edited,
-or no longer matches the manifest. Generated UTF-8 text is hash-compared after CRLF-to-LF
-normalization, so Git checkout policy never creates false cross-platform drift; non-UTF-8 resources
-stay byte-exact.
+`base sync --check` fails when any generated file is missing, stale, or hand-edited, so CI and
+pre-push checks can catch drift. Verifier suites run commands with timeouts in an isolated process
+group; their only verdicts are `pass`, `fail`, and `inconclusive`.
 
-Verifier suites run direct-argv checks in an isolated process group / Windows Job Object with
-timeouts. Their only verdicts are `pass`, `fail`, and `inconclusive` — a missing executable or
-timeout is never coerced into success. `--run` retains the JSON report under the run's
-`evidence/verifications/` folder.
-
----
-
-## Anatomy of a Base project
-
-Everything Base owns lives under `.base/`. Canon composes deterministically; state, work, and
-evidence accumulate as plain files.
+## Project layout
 
 ```text
 ~/.base/                     personal seed library
@@ -159,62 +147,47 @@ evidence accumulate as plain files.
 <repo>/.base/
   base.toml                  targets, gates, packs, generated hashes
   packs/<id>/                immutable repository-vendored packs
-  native/                    allowlisted target-native migration overlays
-  canon/                     project overlay — wins last by canonical ID
-    agents/                  portable roles and access posture
-    skills/<id>/SKILL.md     project Agent Skills plus resources
-    pipelines/               reusable staged workflows
+  native/                    migrated harness-specific files (composed on sync)
+  canon/                     project overlay — your definitions, wins last
+    agents/                  roles and access posture
+    skills/<id>/SKILL.md     Agent Skills plus resources
+    pipelines/               staged workflows
     policies/                lifecycle hook contracts
     verifiers/               executable verification contracts
-    knowledge/               project-tier lessons
-  state/current-work         pointer to an existing W-NNNN item
+    knowledge/               project lessons
+  state/current-work         pointer to the active W-NNNN item
   state/handoff.md           validated handoff bound to a work item and run
-  work/                      work-item folders plus .ids/ team reservations
+  work/                      work-item folders plus team ID reservations
   runs/                      run artifacts and retained evidence
   history.jsonl              append-only run ledger
 ```
-
-Repository hooks are workflow controls, not an authorization boundary. Base reports their runtime,
-trust, and product-profile prerequisites; protect the default branch in your Git host for the
-authoritative server-side boundary.
-
----
 
 ## Documentation
 
 | Document | Answers |
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | What is the shipped v0.2 architecture contract? |
-| [docs/CANON.md](docs/CANON.md) | How do I author each canon kind, pack, and native overlay? |
-| [docs/ADAPTERS.md](docs/ADAPTERS.md) | What surface and fidelity does each harness get? |
-| [docs/UPGRADING.md](docs/UPGRADING.md) | How do I migrate a Base v0.1 project to v0.2? |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Why is Base built this way? (append-only decision log) |
+| [docs/CANON.md](docs/CANON.md) | How do I author each kind of definition? |
+| [docs/ADAPTERS.md](docs/ADAPTERS.md) | What surface does each harness get, and where is fidelity reduced? |
+| [docs/UPGRADING.md](docs/UPGRADING.md) | How do I migrate a v0.1 project? |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Why is Base built this way? |
 
-Start at the [documentation index](docs/README.md) for a guided path through them.
-
----
+Start at the [documentation index](docs/README.md) for a guided path.
 
 ## Development
 
-Base dogfoods its own operating model: this repository is a Base project, so `CLAUDE.md`,
-`AGENTS.md`, `.claude/`, `.codex/`, `.github/`, and `.agents/` are **generated by `base sync`** —
-never edit them by hand.
+This repository runs on its own operating model: `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.codex/`,
+`.github/`, and `.agents/` are **generated by `base sync`** — never edit them by hand.
 
 ```text
-src/                    Rust CLI: compose, sync, verify, gate (hand-edited)
+src/                    Rust CLI: thirteen commands (hand-edited)
 tests/                  spec tether + CLI integration tests
-docs/                   architecture spec, canon contract, adapters, decisions
+docs/                   spec, canon contract, adapters, decisions
 assets/packs/           bundled software-delivery pack installed by base init
-.base/                  this repository's own Base project (dogfooded)
-CLAUDE.md               GENERATED — never edit
-AGENTS.md               GENERATED — never edit
-.claude/                GENERATED — Claude Code surfaces
-.codex/                 GENERATED — Codex surfaces
-.github/                GENERATED — Copilot surfaces
-.agents/skills/         GENERATED — shared Codex/Copilot skills
+.base/                  this repository's own Base project
 ```
 
-Run the full local proof before pushing:
+Run the full proof before pushing:
 
 ```console
 cargo fmt --all -- --check
