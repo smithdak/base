@@ -1,0 +1,12 @@
+Requesting operator approval for run 2026-08-24-merge-onboarding-stack.
+
+Action: merge PR #23 (https://github.com/smithdak/base/pull/23) into `main` with a merge commit,
+delete the four stacked feature branches, fast-forward local main, and verify with the base suite
+on the merged result.
+
+Why it needs approval: this lands the W-0015..W-0018 onboarding/authoring stack on the default
+branch; the never-push-default-branch gate routes the landing through a recorded operator verdict.
+
+Plan: .base/runs/2026-08-24-merge-onboarding-stack/plan.md
+Record the verdict: base approve 2026-08-24-merge-onboarding-stack plan-approval
+(or --deny)
